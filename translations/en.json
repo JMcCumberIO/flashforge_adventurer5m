@@ -14,7 +14,7 @@
           "host": "The IP address or hostname of your printer on the network.",
           "serial_number": "The serial number of your printer, found on the information screen or in the mobile app.",
           "check_code": "The check code for authentication, found in the printer settings.",
-          "scan_interval": "How often Home Assistant should poll the printer for updates (5-300 seconds)."
+          "scan_interval": "How often Home Assistant should poll the printer for updates when idle (5-300 seconds)."
         }
       }
     },
@@ -35,12 +35,14 @@
     "step": {
       "init": {
         "title": "Flashforge Adventurer 5M PRO Options",
-        "description": "Adjust settings for your Flashforge Adventurer 5M PRO printer.",
+        "description": "Adjust polling intervals for your Flashforge Adventurer 5M PRO printer. Shorter intervals provide more frequent updates but increase network traffic and printer load.",
         "data": {
-          "scan_interval": "Update Interval (seconds)"
+          "scan_interval": "Idle Update Interval (seconds)",
+          "printing_scan_interval": "Printing Update Interval (seconds)"
         },
         "data_description": {
-          "scan_interval": "How often to fetch new data from the printer. Lower values provide more frequent updates but may increase network traffic. Recommended: 10-30 seconds."
+          "scan_interval": "How often to fetch data when the printer is idle (e.g., 10-30 seconds). Min: 5, Max: 300.",
+          "printing_scan_interval": "How often to fetch data when the printer is printing (e.g., 1-5 seconds). Min: 1, Max: 15."
         }
       }
     }
@@ -160,4 +162,3 @@
     }
   }
 }
-

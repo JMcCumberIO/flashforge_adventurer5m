@@ -1,4 +1,10 @@
+"""
+Main initialization file for the Flashforge Adventurer 5M PRO integration.
+
+Sets up the integration, manages configuration entries, and registers services.
+"""
 import logging
+from typing import List, Dict, Any # Import List, Dict, Any for type hinting
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -16,72 +22,65 @@ from homeassistant.core import ServiceCall # For type hinting
 _LOGGER = logging.getLogger(__name__)
 
 # Service Attributes
-ATTR_FILE_PATH = "file_path"
-ATTR_PERCENTAGE = "percentage"
-ATTR_HOME_X = "x"
-ATTR_HOME_Y = "y"
-ATTR_HOME_Z = "z"
+ATTR_FILE_PATH: str = "file_path"
+ATTR_PERCENTAGE: str = "percentage"
+ATTR_HOME_X: str = "x"
+ATTR_HOME_Y: str = "y"
+ATTR_HOME_Z: str = "z"
 
 # Services
-SERVICE_PAUSE_PRINT = "pause_print" # Added for service list
-SERVICE_START_PRINT = "start_print" # Added for service list
-SERVICE_CANCEL_PRINT = "cancel_print" # Added for service list
-SERVICE_TOGGLE_LIGHT = "toggle_light" # Added for service list
-SERVICE_RESUME_PRINT = "resume_print" # Added for service list
-SERVICE_SET_EXTRUDER_TEMPERATURE = "set_extruder_temperature" # Added for service list
-SERVICE_SET_BED_TEMPERATURE = "set_bed_temperature" # Added for service list
-SERVICE_SET_FAN_SPEED = "set_fan_speed" # Added for service list
-SERVICE_TURN_FAN_OFF = "turn_fan_off" # Added for service list
-SERVICE_MOVE_AXIS = "move_axis" # Added for service list
-SERVICE_DELETE_FILE = "delete_file"
-SERVICE_DISABLE_STEPPERS = "disable_steppers"
-SERVICE_ENABLE_STEPPERS = "enable_steppers"
-SERVICE_SET_SPEED_PERCENTAGE = "set_speed_percentage"
-SERVICE_SET_FLOW_PERCENTAGE = "set_flow_percentage"
-SERVICE_HOME_AXES = "home_axes"
-SERVICE_EMERGENCY_STOP = "emergency_stop"
-# New service names
-SERVICE_LIST_FILES = "list_files"
-SERVICE_REPORT_FIRMWARE_CAPABILITIES = "report_firmware_capabilities"
-SERVICE_PLAY_BEEP = "play_beep"
-SERVICE_START_BED_LEVELING = "start_bed_leveling"
-SERVICE_SAVE_SETTINGS_TO_EEPROM = "save_settings_to_eeprom" # Renamed from save_settings
-SERVICE_READ_SETTINGS_FROM_EEPROM = "read_settings_from_eeprom"
-# Existing services that are being ensured or potentially modified
-SERVICE_FILAMENT_CHANGE = "filament_change" # Existing
-SERVICE_RESTORE_FACTORY_SETTINGS = "restore_factory_settings" # Existing
-SERVICE_MOVE_RELATIVE = "move_relative"
+SERVICE_PAUSE_PRINT: str = "pause_print"
+SERVICE_START_PRINT: str = "start_print"
+SERVICE_CANCEL_PRINT: str = "cancel_print"
+SERVICE_TOGGLE_LIGHT: str = "toggle_light"
+SERVICE_RESUME_PRINT: str = "resume_print"
+SERVICE_SET_EXTRUDER_TEMPERATURE: str = "set_extruder_temperature"
+SERVICE_SET_BED_TEMPERATURE: str = "set_bed_temperature"
+SERVICE_SET_FAN_SPEED: str = "set_fan_speed"
+SERVICE_TURN_FAN_OFF: str = "turn_fan_off"
+SERVICE_MOVE_AXIS: str = "move_axis"
+SERVICE_DELETE_FILE: str = "delete_file"
+SERVICE_DISABLE_STEPPERS: str = "disable_steppers"
+SERVICE_ENABLE_STEPPERS: str = "enable_steppers"
+SERVICE_SET_SPEED_PERCENTAGE: str = "set_speed_percentage"
+SERVICE_SET_FLOW_PERCENTAGE: str = "set_flow_percentage"
+SERVICE_HOME_AXES: str = "home_axes"
+SERVICE_EMERGENCY_STOP: str = "emergency_stop"
+SERVICE_LIST_FILES: str = "list_files"
+SERVICE_REPORT_FIRMWARE_CAPABILITIES: str = "report_firmware_capabilities"
+SERVICE_PLAY_BEEP: str = "play_beep"
+SERVICE_START_BED_LEVELING: str = "start_bed_leveling"
+SERVICE_SAVE_SETTINGS_TO_EEPROM: str = "save_settings_to_eeprom"
+SERVICE_READ_SETTINGS_FROM_EEPROM: str = "read_settings_from_eeprom"
+SERVICE_FILAMENT_CHANGE: str = "filament_change"
+SERVICE_RESTORE_FACTORY_SETTINGS: str = "restore_factory_settings"
+SERVICE_MOVE_RELATIVE: str = "move_relative"
 
 
 # Platforms
-PLATFORMS = ["sensor", "camera", "binary_sensor"] # Define PLATFORMS
+PLATFORMS: List[str] = ["sensor", "camera", "binary_sensor"]
 
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """
-    Set up the Flashforge Adventurer 5M PRO integration.
-    """
-    # If you don't support YAML configuration, do nothing here.
+async def async_setup(hass: HomeAssistant, config: Dict[str, Any]) -> bool:
+    """Set up the Flashforge Adventurer 5M PRO integration."""
+    # If the integration doesn't support YAML configuration, return True.
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """
-    Set up the Flashforge Adventurer 5M PRO integration from a config entry.
-    """
-    host = entry.data["host"]
-    serial_number = entry.data["serial_number"]
-    check_code = entry.data["check_code"]
+    """Set up Flashforge Adventurer 5M PRO from a config entry."""
+    host: str = entry.data["host"]
+    serial_number: str = entry.data["serial_number"]
+    check_code: str = entry.data["check_code"]
 
     # Retrieve scan_interval (regular) from options, then data, then default
-    # CONF_SCAN_INTERVAL is a HASS built-in 'scan_interval', not from our .const directly for key name
-    scan_interval = entry.options.get(
-        "scan_interval", # Standard Home Assistant key for scan interval
+    scan_interval_regular: int = entry.options.get(
+        "scan_interval",
         entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL)
     )
 
     # Retrieve printing_scan_interval from options, then data, then our const default
-    printing_scan_interval = entry.options.get(
+    scan_interval_printing: int = entry.options.get(
         CONF_PRINTING_SCAN_INTERVAL,
         entry.data.get(CONF_PRINTING_SCAN_INTERVAL, DEFAULT_PRINTING_SCAN_INTERVAL)
     )
@@ -91,18 +90,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         host=host,
         serial_number=serial_number,
         check_code=check_code,
-        regular_scan_interval=scan_interval, # Pass as regular_scan_interval
-        printing_scan_interval=printing_scan_interval # Pass new printing_scan_interval
+        regular_scan_interval=scan_interval_regular,
+        printing_scan_interval=scan_interval_printing
     )
 
     await coordinator.async_refresh()
 
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     # Forward setup to sensor and camera platforms using the updated method
     await hass.config_entries.async_forward_entry_setups(
-        entry, ["sensor", "camera", "binary_sensor"]
+        entry, PLATFORMS # Use PLATFORMS constant
     )
 
     # Add options update listener if not already present (standard practice)
@@ -110,65 +108,65 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.add_update_listener(async_reload_entry)
 
     # Register services
-    async def handle_pause_print(call):
+    async def handle_pause_print(call: ServiceCall) -> None:
         """Handle the service call to pause the print."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         await coordinator.pause_print()
 
-    async def handle_start_print(call):
+    async def handle_start_print(call: ServiceCall) -> None:
         """Handle the service call to start a print."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
-        file_path = call.data.get("file_path")  # Schema ensures it's a string
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+        file_path = call.data.get("file_path")
         if (
             file_path is not None
         ):  # Good practice to check if required field is actually there
             await coordinator.start_print(file_path)
 
-    async def handle_cancel_print(call):
+    async def handle_cancel_print(call: ServiceCall) -> None:
         """Handle the service call to cancel the print."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         await coordinator.cancel_print()
 
-    async def handle_toggle_light(call):
+    async def handle_toggle_light(call: ServiceCall) -> None:
         """Handle the service call to toggle the printer's light."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         state = call.data["state"]
         await coordinator.toggle_light(state)
 
-    async def handle_resume_print(call):
+    async def handle_resume_print(call: ServiceCall) -> None:
         """Handle the service call to resume the print."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         await coordinator.resume_print()
 
-    async def handle_set_extruder_temperature(call):
+    async def handle_set_extruder_temperature(call: ServiceCall) -> None:
         """Handle the service call to set the extruder temperature."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
-        temperature = call.data.get("temperature")  # Schema ensures it's a positive_int
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+        temperature = call.data.get("temperature")
         if temperature is not None:
             await coordinator.set_extruder_temperature(temperature)
 
-    async def handle_set_bed_temperature(call):
+    async def handle_set_bed_temperature(call: ServiceCall) -> None:
         """Handle the service call to set the bed temperature."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
-        temperature = call.data.get("temperature")  # Schema ensures it's a positive_int
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+        temperature = call.data.get("temperature")
         if temperature is not None:
             await coordinator.set_bed_temperature(temperature)
 
-    async def handle_set_fan_speed(call):
+    async def handle_set_fan_speed(call: ServiceCall) -> None:
         """Handle the service call to set the fan speed."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
-        speed = call.data.get("speed")  # Schema ensures it's an int in range
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+        speed = call.data.get("speed")
         if speed is not None:
             await coordinator.set_fan_speed(speed)
 
-    async def handle_turn_fan_off(call):
+    async def handle_turn_fan_off(call: ServiceCall) -> None:
         """Handle the service call to turn the fan off."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         await coordinator.turn_fan_off()
 
-    async def handle_move_axis(call):
+    async def handle_move_axis(call: ServiceCall) -> None:
         """Handle the service call to move printer axes."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         x = call.data.get("x")
         y = call.data.get("y")
         z = call.data.get("z")  # Schema ensures float or None
@@ -218,7 +216,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def handle_set_flow_percentage(call: ServiceCall) -> None:
         """Handle the set_flow_percentage service call."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         percentage = call.data.get(ATTR_PERCENTAGE)
         if percentage is None:
             _LOGGER.error(f"Service '{SERVICE_SET_FLOW_PERCENTAGE}' called without percentage.")
@@ -228,8 +226,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def handle_home_axes(call: ServiceCall) -> None:
         """Handle the home_axes service call."""
-        coordinator = hass.data[DOMAIN][entry.entry_id]
-        axes_to_home = []
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+        axes_to_home: List[str] = []
         if call.data.get(ATTR_HOME_X): axes_to_home.append("X")
         if call.data.get(ATTR_HOME_Y): axes_to_home.append("Y")
         if call.data.get(ATTR_HOME_Z): axes_to_home.append("Z")
@@ -262,11 +260,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Define handlers for new services
     async def handle_list_files(call: ServiceCall) -> None:
+        """Handle the list_files service call."""
         coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         _LOGGER.info(f"Service '{SERVICE_LIST_FILES}' called.")
         await coordinator.list_files()
 
     async def handle_report_firmware_capabilities(call: ServiceCall) -> None:
+        """Handle the report_firmware_capabilities service call."""
         coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         _LOGGER.info(f"Service '{SERVICE_REPORT_FIRMWARE_CAPABILITIES}' called.")
         await coordinator.report_firmware_capabilities()
@@ -278,6 +278,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         }
     )
     async def handle_play_beep(call: ServiceCall) -> None:
+        """Handle the play_beep service call."""
         coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         pitch = call.data["pitch"]
         duration = call.data["duration"]
@@ -285,11 +286,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.play_beep(pitch, duration)
 
     async def handle_start_bed_leveling(call: ServiceCall) -> None:
+        """Handle the start_bed_leveling service call."""
         coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         _LOGGER.info(f"Service '{SERVICE_START_BED_LEVELING}' called.")
         await coordinator.start_bed_leveling()
 
     async def handle_read_settings_from_eeprom(call: ServiceCall) -> None:
+        """Handle the read_settings_from_eeprom service call."""
         coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         _LOGGER.info(f"Service '{SERVICE_READ_SETTINGS_FROM_EEPROM}' called.")
         await coordinator.read_settings_from_eeprom()
@@ -303,6 +306,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         }
     )
     async def handle_move_relative(call: ServiceCall) -> None:
+        """Handle the move_relative service call."""
         coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
         x = call.data.get("x")
         y = call.data.get("y")
@@ -423,21 +427,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_options_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update."""
+    """Handle options update by reloading the config entry."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """
-    Handle removal/unloading of a config entry.
-    """
+    """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
         if not hass.data[DOMAIN]:  # If this was the last entry for this domain
             _LOGGER.info(
-                "Last entry for domain %s unloaded; unregistering services.", DOMAIN
+                f"Last entry for domain {DOMAIN} unloaded; unregistering services."
             )
             # Combine all service names for unregistration
             all_service_names = [
@@ -461,7 +463,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ]
             for service_name in all_service_names:
                 if service_name:
-                    _LOGGER.debug("Unregistering service: %s.%s", DOMAIN, service_name)
+                    _LOGGER.debug(f"Unregistering service: {DOMAIN}.{service_name}")
                     hass.services.async_remove(DOMAIN, service_name)
 
             hass.data.pop(DOMAIN) # Remove the domain from hass.data completely

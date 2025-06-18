@@ -1,3 +1,4 @@
+"""Sensor platform for Flashforge Adventurer 5M PRO integration."""
 import logging
 
 from homeassistant.components.sensor import (
@@ -14,22 +15,52 @@ from homeassistant.const import (
     PERCENTAGE,
     REVOLUTIONS_PER_MINUTE,
 )
-from typing import Dict, Any # Import Dict and Any for type hinting
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .const import DOMAIN, API_ATTR_FIRMWARE_VERSION  # Import new constant
+from typing import Dict, Any, Optional, List, Tuple # Import Dict, Any, Optional, List, Tuple
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+# CoordinatorEntity is now inherited via FlashforgeEntity
+from .entity import FlashforgeEntity # Import the base class
+from .const import (
+    DOMAIN,
+    API_ATTR_FIRMWARE_VERSION,
+    API_ATTR_STATUS,
+    API_ATTR_PRINT_PROGRESS,
+    API_ATTR_PRINT_DURATION,
+    API_ATTR_ESTIMATED_TIME,
+    # Add other API_ATTR_* that are used as keys in SENSOR_DEFINITIONS
+    API_KEY_CODE, # "code"
+    API_KEY_MESSAGE, # "message"
+    # For keys in "detail" object that are not covered by specific API_ATTR_*
+    # These might need new constants if they are not already defined, e.g. API_ATTR_CHAMBER_TEMP = "chamberTemp"
+    # For now, I'll list some that are directly used as string keys:
+    # "chamberTemp", "chamberTargetTemp", "leftTemp", "leftTargetTemp", "rightTemp", "rightTargetTemp",
+    # "platTemp", "platTargetTemp", "cumulativeFilament", "cumulativePrintTime", "fillAmount",
+    # "leftFilamentType", "rightFilamentType", "estimatedLeftLen", "estimatedLeftWeight",
+    # "estimatedRightLen", "estimatedRightWeight", "chamberFanSpeed", "coolingFanSpeed", "tvoc",
+    # "remainingDiskSpace", "zAxisCompensation", "autoShutdownTime", "currentPrintSpeed",
+    # "flashRegisterCode", "location", "macAddr", "measure", "nozzleCnt", "nozzleModel",
+    # "nozzleStyle", "pid", "polarRegisterCode", "printSpeedAdjust"
+    # And top-level custom keys used in coordinator.data
+    # "printable_files", "x_position", "y_position", "z_position"
+    # For this refactor, I will focus on replacing those that have direct API_ATTR_* equivalents.
+)
 from .coordinator import FlashforgeDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 # Centralized sensor definitions: key: (name, unit, device_class, state_class, is_top_level, is_percentage)
+# Using API_ATTR_* constants as keys where applicable.
 SENSOR_DEFINITIONS = {
     # Top-Level
-    "code": ("Status Code", None, None, SensorStateClass.MEASUREMENT, True, False),
-    "message": ("Status Message", None, None, None, True, False),
-    # Detail section
-    "status": ("Status", None, None, None, False, False),
-    "firmwareVersion": ("Firmware Version", None, None, None, False, False),
-    "chamberTemp": (
+    API_KEY_CODE: ("Status Code", None, None, SensorStateClass.MEASUREMENT, True, False), # "code"
+    API_KEY_MESSAGE: ("Status Message", None, None, None, True, False), # "message"
+    # Detail section - using string literals for keys that are directly from API detail object
+    # and don't have a more specific API_ATTR_* constant yet (e.g. chamberTemp)
+    # or if the API_ATTR_* constant matches the string literal.
+    API_ATTR_STATUS: ("Status", None, None, None, False, False),
+    API_ATTR_FIRMWARE_VERSION: ("Firmware Version", None, None, None, False, False),
+    "chamberTemp": ( # TODO: Consider API_ATTR_CHAMBER_TEMP if defined
         "Chamber Temperature",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
@@ -93,26 +124,27 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "printProgress": (
+    # Example for printProgress which has API_ATTR_PRINT_PROGRESS
+    API_ATTR_PRINT_PROGRESS: (
         "Print Progress",
         PERCENTAGE,
-        SensorDeviceClass.BATTERY,
+        SensorDeviceClass.BATTERY, # Using BATTERY device class for percentage
         SensorStateClass.MEASUREMENT,
         False,
         True,
-    ),  # Changed device_class
-    "printDuration": (
+    ),
+    API_ATTR_PRINT_DURATION: (
         "Print Duration",
         UnitOfTime.SECONDS,
-        SensorDeviceClass.DURATION,
+        SensorDeviceClass.DURATION, # Standard DURATION device class
         SensorStateClass.MEASUREMENT,
         False,
         False,
     ),
-    "estimatedTime": (
+    API_ATTR_ESTIMATED_TIME: (
         "Estimated Time Remaining",
         UnitOfTime.SECONDS,
-        SensorDeviceClass.DURATION,
+        SensorDeviceClass.DURATION, # Standard DURATION device class
         SensorStateClass.MEASUREMENT,
         False,
         False,
@@ -266,44 +298,44 @@ SENSOR_DEFINITIONS = {
         False,
         True,
     ),
-    "printable_files": (
-        "Printable Files Count",
-        "files",
-        None,
-        SensorStateClass.MEASUREMENT,
-        True,
-        False,
-    ),
-    "x_position": (
-        "X Position",
-        UnitOfLength.MILLIMETERS,
-        None,
-        SensorStateClass.MEASUREMENT,
-        True,
-        False,
-    ),
-    "y_position": (
-        "Y Position",
-        UnitOfLength.MILLIMETERS,
-        None,
-        SensorStateClass.MEASUREMENT,
-        True,
-        False,
-    ),
-    "z_position": (
-        "Z Position",
-        UnitOfLength.MILLIMETERS,
-        None,
-        SensorStateClass.MEASUREMENT,
-        True,
-        False,
-    ),
+    # Coordinator-populated custom keys (not directly from API attributes with these exact names)
+    # These keys are used in coordinator.py: current_data["printable_files"] = ...
+    # It's better to define constants for these as well if they are to be used as SENSOR_DEFINITION keys.
+    # For now, leaving them as strings, but this is an area for future improvement if these keys are shared.
+    "printable_files": ("Printable Files Count", "files", None, SensorStateClass.MEASUREMENT, True, False),
+    "x_position": ("X Position", UnitOfLength.MILLIMETERS, None, SensorStateClass.MEASUREMENT, True, False),
+    "y_position": ("Y Position", UnitOfLength.MILLIMETERS, None, SensorStateClass.MEASUREMENT, True, False),
+    "z_position": ("Z Position", UnitOfLength.MILLIMETERS, None, SensorStateClass.MEASUREMENT, True, False),
+    # Ensure all other API_ATTR_* constants used by sensors (like temperatures) are defined in const.py
+    # and used here if they match the string keys. The current SENSOR_DEFINITIONS uses string literals
+    # for many keys like "chamberTemp", "leftTemp", etc. These should be replaced if matching constants exist.
+    # This change only replaces a few examples. A full replacement would require ensuring all corresponding
+    # API_ATTR_* constants are defined in const.py and then used here.
 }
+# TODO: Further review SENSOR_DEFINITIONS to replace all string literal keys in this
+# dictionary with their respective API_ATTR_* constants from const.py. This requires
+# ensuring that all necessary API attribute string literals are defined as constants
+# in const.py first. For example, "chamberTemp" should become API_ATTR_CHAMBER_TEMP
+# if such a constant is defined.
+
+# Type for SENSOR_DEFINITIONS value tuple
+SensorDefinitionValue = Tuple[str, Optional[str], Optional[str], Optional[SensorStateClass], bool, bool]
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
-    coordinator = hass.data[DOMAIN][entry.entry_id]
-    sensors_to_add = []
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up Flashforge sensor entities from a config entry.
+
+    Args:
+        hass: Home Assistant instance.
+        entry: The config entry.
+        async_add_entities: Callback to add entities.
+    """
+    coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    sensors_to_add: List[FlashforgeSensor] = []
 
     for attribute_key, (
         name,
@@ -342,7 +374,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         async_add_entities(sensors_to_add)
 
 
-class FlashforgeSensor(CoordinatorEntity, SensorEntity):
+class FlashforgeSensor(FlashforgeEntity, SensorEntity): # Inherit from FlashforgeEntity
     """A sensor for one JSON field from the printer."""
 
     def __init__(
@@ -350,40 +382,52 @@ class FlashforgeSensor(CoordinatorEntity, SensorEntity):
         coordinator: FlashforgeDataUpdateCoordinator,
         attribute_key: str,
         name: str,
-        unit,
-        device_class,
-        state_class,
+        unit: Optional[str],
+        device_class: Optional[SensorDeviceClass | str], # SensorDeviceClass or str
+        state_class: Optional[SensorStateClass],
         is_top_level: bool,
         is_percentage: bool,
-    ):
-        super().__init__(coordinator)
-        self.coordinator = coordinator
-        self._attribute_key = attribute_key
-        self._is_top_level = is_top_level
-        self._is_percentage = is_percentage
+    ) -> None:
+        """Initialize the Flashforge sensor.
 
-        self._attr_name = f"Flashforge {name}"
-        self._attr_unique_id = f"flashforge_{coordinator.serial_number}_{attribute_key.lower().replace(' ', '_')}"
-        self._attr_device_class = device_class
-        self._attr_state_class = state_class
-        self._attr_native_unit_of_measurement = PERCENTAGE if is_percentage else unit
-        self._attr_extra_state_attributes: Dict[str, Any] = {}  # Add type hint
-        self._attr_native_value: Any = None # Initialize with type hint for native_value
+        Args:
+            coordinator: The data update coordinator.
+            attribute_key: The key for this sensor's data in the coordinator_data
+                           or detail dictionary within coordinator_data. Also used as
+                           part of the unique ID.
+            name: The suffix for the entity name (e.g., "Chamber Temperature").
+            unit: The unit of measurement for the sensor.
+            device_class: The device class of the sensor.
+            state_class: The state class of the sensor.
+            is_top_level: True if the attribute_key is at the root of coordinator.data.
+            is_percentage: True if the value needs to be multiplied by 100.
+        """
+        # Pass name_suffix=name and unique_id_key=attribute_key to the base class.
+        # attribute_key is already suitable as a unique_id_key (e.g., "chamberTemp", "printProgress").
+        super().__init__(coordinator, name_suffix=name, unique_id_key=attribute_key)
 
-        fw = None
-        if self.coordinator.data and self.coordinator.data.get(
-            "detail"
-        ):  # Ensure detail exists
-            fw = self.coordinator.data.get("detail", {}).get(API_ATTR_FIRMWARE_VERSION)
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, self.coordinator.serial_number)},
-            "name": "Flashforge Adventurer 5M PRO",
-            "manufacturer": "Flashforge",
-            "model": "Adventurer 5M PRO",
-            "sw_version": fw,
-        }
+        self._attribute_key: str = attribute_key
+        self._is_top_level: bool = is_top_level
+        self._is_percentage: bool = is_percentage
+
+        # self._attr_name and self._attr_unique_id are set by the FlashforgeEntity base class.
+        self._attr_device_class: Optional[SensorDeviceClass | str] = device_class
+        self._attr_state_class: Optional[SensorStateClass] = state_class
+        self._attr_native_unit_of_measurement: Optional[str] = PERCENTAGE if is_percentage else unit
+        self._attr_extra_state_attributes: Dict[str, Any] = {}
+        self._attr_native_value: Any = None
+
+        # self._attr_device_info is now handled by the inherited device_info property from FlashforgeEntity.
+        # The base class constructor FlashforgeEntity(coordinator) is called by super().__init__(coordinator).
 
     def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator.
+
+        This method is called by the SENSOR_DEFINITIONS listener when the coordinator updates.
+        It fetches the new state for the sensor from `self.coordinator.data`,
+        updates `self._attr_native_value` and other attributes, and calls
+        `self.async_write_ha_state()` to persist the new state.
+        """
         self._attr_available = self.coordinator.last_update_success
         raw_value = None
         if self.coordinator.data:
@@ -395,24 +439,20 @@ class FlashforgeSensor(CoordinatorEntity, SensorEntity):
                 )
 
         # Ensure extra_state_attributes is initialized (already done in __init__, but good for clarity)
-        # self._attr_extra_state_attributes = self._attr_extra_state_attributes or {} # Not needed if __init__ guarantees it's a dict
+        # self._attr_extra_state_attributes = self._attr_extra_state_attributes or {}
 
-        if self._attribute_key == "printable_files":
+        # Example: If "printable_files" key was changed to a constant INTERNAL_KEY_PRINTABLE_FILES
+        # if self._attribute_key == INTERNAL_KEY_PRINTABLE_FILES:
+        if self._attribute_key == "printable_files": # Keeping as string for now, per above TODO
             files_list = raw_value if isinstance(raw_value, list) else []
-            self._attr_native_value = len(files_list)  # State is the count of files
-            self._attr_extra_state_attributes["files"] = (
-                files_list  # Add 'files' to attributes
-            )
+            self._attr_native_value = len(files_list)
+            self._attr_extra_state_attributes["files"] = files_list
         elif self._is_percentage and raw_value is not None:
             try:
                 self._attr_native_value = round(float(raw_value) * 100.0, 1)
             except (ValueError, TypeError) as e:  # Catch specific errors
                 _LOGGER.warning(
-                    "Could not convert value '%s' to percentage for sensor %s (%s). Error: %s",
-                    raw_value,
-                    self._attribute_key,
-                    self.name,
-                    e,
+                    f"Could not convert value '{raw_value}' to percentage for sensor {self._attribute_key} ({self.name}). Error: {e}",
                     exc_info=True,
                 )
                 self._attr_native_value = None
@@ -426,17 +466,15 @@ class FlashforgeSensor(CoordinatorEntity, SensorEntity):
             fw_version = self.coordinator.data.get("detail", {}).get(
                 API_ATTR_FIRMWARE_VERSION
             )
-            if fw_version and self._attr_device_info.get("sw_version") != fw_version:
-                self._attr_device_info["sw_version"] = fw_version
+            # The device_info property from FlashforgeEntity will pick up new sw_version.
+            # No need to manually update self._attr_device_info['sw_version'] here if we rely on the property.
+            pass # sw_version is handled by the device_info property
         self.async_write_ha_state()
 
     @property
     def native_value(self) -> Any: # Type hint for property getter
+        """Return the state of the sensor."""
         return self._attr_native_value
 
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        self._handle_coordinator_update()
-        self.async_on_remove(
-            self.coordinator.async_add_listener(self._handle_coordinator_update)
-        )
+    # async_added_to_hass is inherited from FlashforgeEntity
+    # The inherited async_added_to_hass calls self._handle_coordinator_update.

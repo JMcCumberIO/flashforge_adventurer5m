@@ -16,7 +16,7 @@ states including:
 
 import logging
 import re
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict, Optional, Callable, List # Added List for type hinting
 
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
@@ -25,9 +25,11 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+# CoordinatorEntity is now inherited via FlashforgeEntity
 from homeassistant.const import PERCENTAGE  # Import PERCENTAGE from HA const
 
+from .entity import FlashforgeEntity # Import the base class
 from .const import (
     DOMAIN,
     PRINTING_STATES,
@@ -77,7 +79,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: Callable
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """
     Set up binary sensors for the Flashforge Adventurer 5M PRO.
@@ -215,10 +217,10 @@ async def async_setup_entry(
     ]
 
     # Register all entities with Home Assistant
-    async_add_entities(entities)
+    async_add_entities(entities) # entities is implicitly List[FlashforgeBinarySensor]
 
 
-class FlashforgeBinarySensor(CoordinatorEntity, BinarySensorEntity):
+class FlashforgeBinarySensor(FlashforgeEntity, BinarySensorEntity): # Inherit from FlashforgeEntity
     """
     Binary sensor implementation for Flashforge Adventurer 5M PRO.
 
@@ -238,38 +240,44 @@ class FlashforgeBinarySensor(CoordinatorEntity, BinarySensorEntity):
         connection_status_sensor: bool = False,
         error_sensor: bool = False,
     ) -> None:
-        """
-        Initialize a binary sensor for Flashforge.
+        """Initialize a binary sensor for Flashforge.
 
         Args:
-            coordinator: The data update coordinator
-            name: The sensor name
-            icon: Icon to use for the sensor
-            device_class: Binary sensor device class
-            entity_category: Entity category (config, diagnostic, or None)
-            detail_attribute: Attribute in detail dictionary to monitor
-            value_on: Value that indicates the "on" state
-            is_printing_sensor: Whether this is the printing status sensor
-            connection_status_sensor: Whether this is the connection status sensor
-            error_sensor: Whether this is the error state sensor
+            coordinator: The data update coordinator.
+            name: The sensor name (used as name_suffix for FlashforgeEntity).
+            icon: Icon to use for the sensor.
+            device_class: Binary sensor device class.
+            entity_category: Entity category (config, diagnostic, or None).
+            detail_attribute: Attribute in detail dictionary to monitor.
+            value_on: Value that indicates the "on" state.
+            is_printing_sensor: Whether this is the printing status sensor.
+            connection_status_sensor: Whether this is the connection status sensor.
+            error_sensor: Whether this is the error state sensor.
         """
-        super().__init__(coordinator)
+        # Prepare unique_id_key for the base class
+        unique_id_key = name.lower().replace(" ", "_")
+        super().__init__(coordinator, name_suffix=name, unique_id_key=unique_id_key)
 
-        self._attr_name = f"Flashforge {name}"
-        self._attr_icon = icon
-        self._attr_device_class = device_class
-        self._attr_entity_category = entity_category
+        # self._attr_name and self._attr_unique_id are set by the FlashforgeEntity base class.
+        self._attr_icon: Optional[str] = icon
+        self._attr_device_class: Optional[str] = device_class
+        self._attr_entity_category: Optional[EntityCategory] = entity_category
 
         # Specific attribute settings
-        self._detail_attribute = detail_attribute
-        self._value_on = value_on
-        self._is_printing_sensor = is_printing_sensor
-        self._connection_status_sensor = connection_status_sensor
-        self._error_sensor = error_sensor
+        self._detail_attribute: Optional[str] = detail_attribute
+        self._value_on: Any = value_on
+        self._is_printing_sensor: bool = is_printing_sensor
+        self._connection_status_sensor: bool = connection_status_sensor
+        self._error_sensor: bool = error_sensor
 
-        # Create unique_id
-        sensor_key = name.lower().replace(" ", "_")
-        self._attr_unique_id = f"flashforge_{coordinator.serial_number}_{sensor_key}"
+        # unique_id is set by the base class.
+
+    # _handle_coordinator_update is called by the base class listener
+    # We need to ensure it updates the entity state based on new coordinator data.
+    # For BinarySensor, this means re-evaluating self.is_on.
+    # The base FlashforgeEntity._handle_coordinator_update calls self.async_write_ha_state(),
+    # which is usually sufficient if properties like `is_on` re-evaluate correctly.
+    # No specific override of _handle_coordinator_update needed here if `is_on` is dynamic.
 
     @property
     def is_on(self) -> bool:
@@ -288,8 +296,7 @@ class FlashforgeBinarySensor(CoordinatorEntity, BinarySensorEntity):
         # If coordinator has no data, we can't determine state
         if not self.coordinator.data:
             _LOGGER.debug(
-                "Coordinator data not available for sensor %s, returning False",
-                self.name,
+                f"Coordinator data not available for sensor {self.name}, returning False"
             )
             return False
 
@@ -420,30 +427,5 @@ class FlashforgeBinarySensor(CoordinatorEntity, BinarySensorEntity):
         return attributes if attributes else None
 
     @property
-    def device_info(self):
-        """
-        Return device info for this sensor.
-
-        Ensures all entities for the printer are grouped under the same device.
-
-        Returns:
-            dict: Device information
-        """
-        if not self.coordinator.data:
-            return None
-
-        fw = self.coordinator.data.get("detail", {}).get(API_ATTR_FIRMWARE_VERSION)
-
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.serial_number)},
-            "name": "Flashforge Adventurer 5M PRO",
-            "manufacturer": "Flashforge",
-            "model": "Adventurer 5M PRO",
-            "sw_version": fw,
-        }
-
-    async def async_added_to_hass(self):
-        """Register callbacks when entity is added."""
-        self.async_on_remove(
-            self.coordinator.async_add_listener(self.async_write_ha_state)
-        )
+    # device_info property is now inherited from FlashforgeEntity
+    # async_added_to_hass is now inherited from FlashforgeEntity

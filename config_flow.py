@@ -34,6 +34,15 @@ from .const import (
     RETRY_DELAY,
     ENDPOINT_DETAIL,
     REQUIRED_RESPONSE_FIELDS,
+    # API Keys for payload and response
+    API_KEY_SERIAL_NUMBER,
+    API_KEY_CHECK_CODE,
+    API_KEY_CODE,
+    API_KEY_MESSAGE,
+    API_VALUE_SUCCESS_CODE,
+    # Prefix for unique IDs
+    UNIQUE_ID_PREFIX,
+    MANUFACTURER
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -120,9 +129,9 @@ class FlashforgeOptionsFlow(config_entries.OptionsFlow):
 class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for the Flashforge Adventurer 5M PRO integration."""
 
-    VERSION = 1
+    VERSION: int = 1
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the config flow."""
         self._errors: Dict[str, str] = {}
 
@@ -253,17 +262,16 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             if not errors:
                 # Check if this printer is already configured
-                await self.async_set_unique_id(
-                    f"flashforge_{user_input['serial_number']}"
-                )
+                serial_num = user_input["serial_number"]
+                await self.async_set_unique_id(f"{UNIQUE_ID_PREFIX}{serial_num}")
                 self._abort_if_unique_id_configured()
 
                 # Create the config entry
                 return self.async_create_entry(
-                    title=f"Flashforge {user_input['serial_number']}",
+                    title=f"{MANUFACTURER} {serial_num}", # Use MANUFACTURER constant
                     data={
                         CONF_HOST: user_input[CONF_HOST],
-                        "serial_number": user_input["serial_number"],
+                        "serial_number": serial_num,
                         "check_code": user_input["check_code"],
                         CONF_SCAN_INTERVAL: user_input.get(
                             CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
@@ -305,7 +313,7 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             Exception: For other unexpected errors
         """
         url = f"http://{host}:{DEFAULT_PORT}{ENDPOINT_DETAIL}"
-        payload = {"serialNumber": serial_number, "checkCode": check_code}
+        payload = {API_KEY_SERIAL_NUMBER: serial_number, API_KEY_CHECK_CODE: check_code}
 
         for attempt in range(MAX_RETRIES):
             try:
@@ -319,9 +327,7 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ) as resp:
                         if resp.status in (401, 403):
                             _LOGGER.error(
-                                "Authentication failed with status: %s for host %s",
-                                resp.status,
-                                host,
+                                f"Authentication failed with status: {resp.status} for host {host}"
                             )
                             raise InvalidAuth("Authentication failed")
 
@@ -331,36 +337,38 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         try:
                             data = json.loads(text_data)
                         except json.JSONDecodeError as e:
-                            _LOGGER.error("Invalid JSON response from %s: %s", host, e)
+                            _LOGGER.error(f"Invalid JSON response from {host}: {e}")
                             raise InvalidAuth(f"Invalid response format: {e}")
 
+                        # Validate basic structure and success code
                         if not all(field in data for field in REQUIRED_RESPONSE_FIELDS):
                             _LOGGER.error(
-                                "Invalid response structure from %s, missing required fields",
-                                host,
+                                f"Invalid response structure from {host}, missing required fields: {REQUIRED_RESPONSE_FIELDS}"
                             )
                             raise InvalidAuth("Invalid response structure")
 
-                        if data.get("code") != 0:
+                        if data.get(API_KEY_CODE) != API_VALUE_SUCCESS_CODE:
                             error_msg = data.get(
-                                "message", "Unknown error from printer"
+                                API_KEY_MESSAGE, "Unknown error from printer API"
                             )
                             _LOGGER.error(
-                                "Printer at %s returned error: %s", host, error_msg
+                                f"Printer API at {host} returned error code {data.get(API_KEY_CODE)}: {error_msg}"
                             )
-                            raise InvalidAuth(f"Printer error: {error_msg}")
+                            # Distinguish auth failure by API code if possible, otherwise generic error
+                            # This part might need adjustment based on how printer API signals specific errors
+                            if data.get(API_KEY_CODE) == 1: # Example: Assuming code 1 is auth error
+                                raise InvalidAuth(f"Printer API authentication error: {error_msg}")
+                            else:
+                                raise InvalidAuth(f"Printer API error: {error_msg}") # Or a more generic error like CannotConnect
 
-                        _LOGGER.info("Connection test to %s successful", host)
+                        _LOGGER.info(f"Connection test to {host} successful")
                         return  # Success
 
             except (
                 asyncio.TimeoutError
             ):  # This will be raised by ClientTimeout if it's a total timeout
                 _LOGGER.warning(
-                    "Connection to %s timed out (attempt %d of %d)",
-                    host,
-                    attempt + 1,
-                    MAX_RETRIES,
+                    f"Connection to {host} timed out (attempt {attempt + 1} of {MAX_RETRIES})"
                 )
                 if attempt == MAX_RETRIES - 1:
                     raise ConnectionTimeout(
@@ -371,12 +379,7 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 aiohttp.ClientResponseError
             ) as e:  # Specific error for HTTP status issues
                 _LOGGER.warning(
-                    "HTTP error connecting to %s (attempt %d of %d): %s - %s",
-                    host,
-                    attempt + 1,
-                    MAX_RETRIES,
-                    e.status,
-                    e.message,
+                    f"HTTP error connecting to {host} (attempt {attempt + 1} of {MAX_RETRIES}): {e.status} - {e.message}"
                 )
                 if attempt == MAX_RETRIES - 1:
                     raise CannotConnect(
@@ -387,11 +390,7 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 aiohttp.ClientConnectionError
             ) as e:  # More specific connection errors
                 _LOGGER.warning(
-                    "Connection error to %s (attempt %d of %d): %s",
-                    host,
-                    attempt + 1,
-                    MAX_RETRIES,
-                    str(e),
+                    f"Connection error to {host} (attempt {attempt + 1} of {MAX_RETRIES}): {str(e)}"
                 )
                 if attempt == MAX_RETRIES - 1:
                     raise CannotConnect(
@@ -401,11 +400,7 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # General ClientError if not caught by more specific ones above
             except aiohttp.ClientError as e:
                 _LOGGER.warning(
-                    "Generic ClientError connecting to %s (attempt %d of %d): %s",
-                    host,
-                    attempt + 1,
-                    MAX_RETRIES,
-                    str(e),
+                    f"Generic ClientError connecting to {host} (attempt {attempt + 1} of {MAX_RETRIES}): {str(e)}"
                 )
                 if attempt == MAX_RETRIES - 1:
                     raise CannotConnect(
@@ -415,7 +410,7 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # If we are not on the last attempt, sleep and retry
             if attempt < MAX_RETRIES - 1:
                 _LOGGER.debug(
-                    "Retrying connection to %s in %s seconds...", host, RETRY_DELAY
+                    f"Retrying connection to {host} in {RETRY_DELAY} seconds..."
                 )
                 await asyncio.sleep(RETRY_DELAY)
             # If it IS the last attempt and we haven't raised an exception yet (e.g. InvalidAuth was caught by the outer handler),

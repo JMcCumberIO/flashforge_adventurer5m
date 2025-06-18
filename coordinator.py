@@ -8,10 +8,11 @@ import asyncio
 import logging
 import re  # For parsing M114
 from datetime import timedelta
-from typing import Any, Optional, List # Added List
+from typing import Any, Optional, List, Dict, Coroutine # Added Dict, Coroutine
 
 import aiohttp
 
+from homeassistant.core import HomeAssistant # For type hinting hass
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
@@ -42,6 +43,56 @@ from .const import (
     API_ATTR_Z_ENDSTOP_STATUS,
     API_ATTR_FILAMENT_ENDSTOP_STATUS,
     API_ATTR_BED_LEVELING_STATUS,
+    # API Keys
+    API_KEY_SERIAL_NUMBER,
+    API_KEY_CHECK_CODE,
+    # TCP Commands and related
+    TCP_RESPONSE_TERMINATOR_OK,
+    TCP_CMD_GET_BED_LEVEL_STATUS,
+    TCP_CMD_GET_ENDSTOPS,
+    TCP_CMD_LIST_FILES_M661,
+    M661_CMD_PREFIX, # Prefix to strip from M661 response
+    M661_SEPARATOR,  # Separator for M661 file list
+    TCP_CMD_M661_PATH_PREFIX, # Path prefix in M661 files
+    M661_FILE_EXT_GCODE,
+    M661_FILE_EXT_GX,
+    TCP_CMD_GET_POSITION,
+    TCP_CMD_PAUSE_PRINT,
+    TCP_CMD_RESUME_PRINT,
+    TCP_CMD_START_PRINT_TEMPLATE,
+    TCP_CMD_CANCEL_PRINT,
+    TCP_CMD_LIGHT_ON_TEMPLATE, # Assuming F0 is for chamber, might need adjustment
+    TCP_CMD_LIGHT_OFF,
+    TCP_CMD_EXTRUDER_TEMP_TEMPLATE,
+    TCP_CMD_BED_TEMP_TEMPLATE,
+    TCP_CMD_FAN_SPEED_TEMPLATE,
+    TCP_CMD_FAN_OFF,
+    TCP_CMD_MOVE_AXIS_TEMPLATE,
+    TCP_CMD_RELATIVE_POSITIONING,
+    TCP_CMD_ABSOLUTE_POSITIONING,
+    TCP_CMD_DELETE_FILE_TEMPLATE,
+    TCP_CMD_DISABLE_STEPPERS,
+    TCP_CMD_ENABLE_STEPPERS,
+    TCP_CMD_SPEED_PERCENTAGE_TEMPLATE,
+    TCP_CMD_FLOW_PERCENTAGE_TEMPLATE,
+    TCP_CMD_HOME_AXES_TEMPLATE,
+    TCP_CMD_FILAMENT_CHANGE,
+    TCP_CMD_EMERGENCY_STOP,
+    TCP_CMD_LIST_FILES_M20,
+    TCP_CMD_REPORT_FIRMWARE_CAPS,
+    TCP_CMD_PLAY_BEEP_TEMPLATE,
+    TCP_CMD_START_BED_LEVELING,
+    TCP_CMD_SAVE_SETTINGS_EEPROM,
+    TCP_CMD_READ_SETTINGS_EEPROM,
+    TCP_CMD_RESTORE_FACTORY_SETTINGS,
+    # Validation limits
+    MIN_EXTRUDER_TEMP, MAX_EXTRUDER_TEMP,
+    MIN_BED_TEMP, MAX_BED_TEMP,
+    MIN_FAN_SPEED, MAX_FAN_SPEED,
+    MIN_SPEED_PERCENTAGE, MAX_SPEED_PERCENTAGE,
+    MIN_FLOW_PERCENTAGE, MAX_FLOW_PERCENTAGE,
+    MIN_BEEP_PITCH, MAX_BEEP_PITCH,
+    MIN_BEEP_DURATION, MAX_BEEP_DURATION,
 )
 from .flashforge_tcp import FlashforgeTCPClient
 
@@ -49,15 +100,31 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
+    """Manages fetching data and printer interactions for Flashforge Adventurer 5M series.
+
+    This coordinator handles polling the printer for status updates via HTTP and
+    provides methods for sending commands to the printer via TCP M-codes.
+    It dynamically adjusts polling frequency based on printer state (printing vs. idle).
+    """
     def __init__(
         self,
-        hass,
+        hass: HomeAssistant, # Typed hass
         host: str,
         serial_number: str,
         check_code: str,
-        regular_scan_interval: int = DEFAULT_SCAN_INTERVAL, # Renamed
-        printing_scan_interval: int = DEFAULT_PRINTING_SCAN_INTERVAL, # Added
-    ):
+        regular_scan_interval: int = DEFAULT_SCAN_INTERVAL,
+        printing_scan_interval: int = DEFAULT_PRINTING_SCAN_INTERVAL,
+    ) -> None:
+        """Initialize the data update coordinator.
+
+        Args:
+            hass: Home Assistant instance.
+            host: The IP address or hostname of the printer.
+            serial_number: The serial number of the printer.
+            check_code: The check code for authenticating with the printer.
+            regular_scan_interval: Polling interval when the printer is idle.
+            printing_scan_interval: Polling interval when the printer is printing.
+        """
         super().__init__(
             hass,
             _LOGGER,
@@ -75,7 +142,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         )  # This is first populated by the base class after _async_update_data
 
     async def _send_tcp_command(
-        self, command: str, action: str, response_terminator: str = "ok\r\n"
+        self, command: str, action: str, response_terminator: str = TCP_RESPONSE_TERMINATOR_OK
     ) -> bool:
         """Helper method to send a TCP command and handle common logic."""
         tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
@@ -98,17 +165,17 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error(f"Exception during {action} TCP command: {e}", exc_info=True)
             return False
 
-    async def _fetch_bed_leveling_status(self) -> dict:
+    async def _fetch_bed_leveling_status(self) -> Dict[str, Optional[bool]]:
         """Fetches and parses bed leveling status from M420 command."""
-        status_data = {API_ATTR_BED_LEVELING_STATUS: None}
-        command = "~M420 S0\r\n"
+        status_data: Dict[str, Optional[bool]] = {API_ATTR_BED_LEVELING_STATUS: None}
+        command = TCP_CMD_GET_BED_LEVEL_STATUS
         action = "FETCH BED LEVELING STATUS (M420 S0)"
 
         tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
         _LOGGER.debug(f"Attempting to {action} using TCP command: {command.strip()}")
 
         try:
-            success, response = await tcp_client.send_command(command, response_terminator="ok\r\n")
+            success, response = await tcp_client.send_command(command, response_terminator=TCP_RESPONSE_TERMINATOR_OK)
             if success and response:
                 _LOGGER.debug(f"Raw response for {action}: {response}")
                 response_lower = response.lower()
@@ -130,22 +197,22 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
 
         return status_data
 
-    async def _fetch_endstop_status(self) -> dict:
+    async def _fetch_endstop_status(self) -> Dict[str, Optional[bool]]:
         """Fetches and parses endstop status from M119 command."""
-        endstop_data = {
+        endstop_data: Dict[str, Optional[bool]] = {
             API_ATTR_X_ENDSTOP_STATUS: None,
             API_ATTR_Y_ENDSTOP_STATUS: None,
             API_ATTR_Z_ENDSTOP_STATUS: None,
             API_ATTR_FILAMENT_ENDSTOP_STATUS: None, # Initialize, will remain None if not reported
         }
-        action = "FETCH ENDSTOP STATUS (M119)"
-        command = "~M119\r\n"
+        action = "FETCH ENDSTOP STATUS (M119)" # Action description
+        command = TCP_CMD_GET_ENDSTOPS
 
         tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
         _LOGGER.debug(f"Attempting to {action} using TCP command: {command.strip()}")
 
         try:
-            success, response = await tcp_client.send_command(command, response_terminator="ok\r\n")
+            success, response = await tcp_client.send_command(command, response_terminator=TCP_RESPONSE_TERMINATOR_OK)
             if success and response:
                 _LOGGER.debug(f"Raw response for {action}: {response}")
                 # Marlin typically responds with one line per endstop, e.g.:
@@ -180,7 +247,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
 
         return endstop_data
 
-    async def _fetch_printable_files_list(self) -> list[str]:
+    async def _fetch_printable_files_list(self) -> List[str]:
         """
         Fetches the list of printable files using TCP M-code ~M661.
         Expected M661 response format (observed):
@@ -190,55 +257,44 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         The actual file paths start with /data/
         """
         tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
-        command = "~M661\r\n"
-        action = "FETCH PRINTABLE FILES"
+        command = TCP_CMD_LIST_FILES_M661
+        action = "FETCH PRINTABLE FILES (M661)" # Action description
         files_list = []
 
         _LOGGER.debug(f"Attempting to {action} using TCP command: {command.strip()}")
 
         try:
             success, response = await tcp_client.send_command(
-                command, response_terminator="ok\r\n"
+                command, response_terminator=TCP_RESPONSE_TERMINATOR_OK
             )
 
             if success and response:
                 _LOGGER.debug(f"Raw response for {action}: {response}")
 
                 payload_str = response
-                # Remove known prefixes like "CMD M661 Received.\r\nok\r\n"
-                # The client might have already stripped some part of it if "ok\r\n" was found early.
-                # A more robust way is to find where the actual data starts.
-                # The Wireshark log showed "D\xaa\xaaD\x00\x00\x00\x1b::\xa3\xa3\x00\x00\x00//data/..."
-                # and the first part of the logged payload was "DD\x00\x00\x00\x1b::\xa3\xa3\x00\x00\x00//data/..."
-                # This suggests the actual file data starts after the first "ok\r\n".
-                # Let's assume `payload_str` contains the data after "ok\r\n".
-
-                prefix_to_strip = "CMD M661 Received.\r\nok\r\n"
-                if response.startswith(prefix_to_strip):
-                    payload_str = response[len(prefix_to_strip) :]
-                elif response.startswith("ok\r\n"):
-                    payload_str = response[len("ok\r\n") :]
+                # Remove known prefixes like M661_CMD_PREFIX
+                # The client might have already stripped some part of it if TCP_RESPONSE_TERMINATOR_OK was found early.
+                if response.startswith(M661_CMD_PREFIX): # M661_CMD_PREFIX includes "ok\r\n"
+                    payload_str = response[len(M661_CMD_PREFIX):]
+                elif response.startswith(TCP_RESPONSE_TERMINATOR_OK): # If only "ok\r\n" was there
+                    payload_str = response[len(TCP_RESPONSE_TERMINATOR_OK):]
 
                 _LOGGER.debug(
                     f"Payload for M661 parsing after stripping initial 'ok': '{payload_str[:200]}...'"
-                )  # Log start of payload
+                )
 
-                # Separator after UTF-8 decoding with errors='ignore' (drops £)
-                separator = "::\x00\x00\x00"  # Per observation
-                parts = payload_str.split(separator)
+                parts = payload_str.split(M661_SEPARATOR)
                 _LOGGER.debug(
-                    f"Splitting M661 payload with separator '{repr(separator)}'. Number of parts: {len(parts)}. First few parts if any: {parts[:5]}"
+                    f"Splitting M661 payload with separator '{repr(M661_SEPARATOR)}'. Number of parts: {len(parts)}. First few parts if any: {parts[:5]}"
                 )
 
                 if len(parts) <= 1 and payload_str:
                     _LOGGER.warning(
-                        "M661 parsing: Separator '%s' not found or produced no splits in non-empty payload: %s",
-                        repr(separator),
-                        payload_str[:100] + "...",
+                        f"M661 parsing: Separator '{repr(M661_SEPARATOR)}' not found or produced no splits in non-empty payload: {payload_str[:100]}..."
                     )
 
                 for part in parts:
-                    path_start_index = part.find("/data/")
+                    path_start_index = part.find(TCP_CMD_M661_PATH_PREFIX)
                     if path_start_index != -1:
                         file_path = part[path_start_index:]
                         _LOGGER.debug(
@@ -249,28 +305,25 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                                 filter(lambda x: x.isprintable(), file_path)
                             ).strip()
                             _LOGGER.debug(
-                                f"M661 parsing - Cleaned path: '{cleaned_path}', Starts with /data/ and ends with .gcode/.gx: {cleaned_path.startswith('/data/') and cleaned_path.endswith(('.gcode', '.gx'))}"
+                                f"M661 parsing - Cleaned path: '{cleaned_path}', Starts with {TCP_CMD_M661_PATH_PREFIX} and ends with {M661_FILE_EXT_GCODE}/{M661_FILE_EXT_GX}: {cleaned_path.startswith(TCP_CMD_M661_PATH_PREFIX) and cleaned_path.endswith((M661_FILE_EXT_GCODE, M661_FILE_EXT_GX))}"
                             )
                             if cleaned_path.startswith(
-                                "/data/"
-                            ) and cleaned_path.endswith((".gcode", ".gx")):
+                                TCP_CMD_M661_PATH_PREFIX
+                            ) and cleaned_path.endswith((M661_FILE_EXT_GCODE, M661_FILE_EXT_GX)):
                                 files_list.append(cleaned_path)
                     else:
                         if (
                             part.strip()
                         ):  # Log only if part contains something other than whitespace
                             _LOGGER.debug(
-                                "M661 parsing: '/data/' not found in part: '%s'",
-                                part[:100] + "...",
+                                f"M661 parsing: '{TCP_CMD_M661_PATH_PREFIX}' not found in part: '{part[:100]}...'"
                             )
 
                 if files_list:
                     _LOGGER.info(f"Successfully parsed file list: {files_list}")
                 else:
                     _LOGGER.warning(
-                        "File list parsing resulted in empty list. This may be due to an unexpected response format, "
-                        "no files on printer, or parsing issues. Raw payload sample after prefix: %s",
-                        payload_str[:200] + "...",
+                        f"File list parsing resulted in empty list from M661. This may be due to an unexpected response format, no files on printer, or parsing issues. Raw payload sample after prefix: {payload_str[:200]}..."
                     )
 
             elif (
@@ -289,19 +342,18 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error(f"Exception during {action} TCP command: {e}", exc_info=True)
             return []
 
-    async def _fetch_coordinates(self) -> Optional[dict[str, float]]:
+    async def _fetch_coordinates(self) -> Optional[Dict[str, float]]:
         """Fetches and parses the printer's X,Y,Z coordinates using M-code ~M114."""
         tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
-        command = "~M114\r\n"
-        action = "FETCH COORDINATES"
-        coordinates = {}
-        # conversion_factor = 2.54 # Removed, assuming M114 reports in mm
+        command = TCP_CMD_GET_POSITION
+        action = "FETCH COORDINATES (M114)" # Action description
+        coordinates: Dict[str, float] = {}
 
         _LOGGER.debug(f"Attempting to {action} using TCP command: {command.strip()}")
 
         try:
             success, response = await tcp_client.send_command(
-                command, response_terminator="ok\r\n"
+                command, response_terminator=TCP_RESPONSE_TERMINATOR_OK
             )
             if success and response:
                 _LOGGER.debug(f"Raw response for {action}: {response}")
@@ -335,7 +387,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             return None
         return None  # Should not be reached, but linters might prefer it.
 
-    async def _async_update_data(self):
+    async def _async_update_data(self) -> Dict[str, Any]:
         # Determine current polling interval based on self.data from PREVIOUS poll
         # (or initial regular_scan_interval if self.data is not yet populated)
         # This logic is slightly tricky because self.update_interval is used by the *caller*
@@ -375,7 +427,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Step 1: Fetch main status data via HTTP
         url = f"http://{self.host}:{DEFAULT_PORT}{ENDPOINT_DETAIL}"
-        payload = {"serialNumber": self.serial_number, "checkCode": self.check_code}
+        payload = {API_KEY_SERIAL_NUMBER: self.serial_number, API_KEY_CHECK_CODE: self.check_code}
         retries = 0
         delay = RETRY_DELAY
         http_fetch_successful = False
@@ -398,16 +450,30 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                             break
                         else:
                             _LOGGER.warning(
-                                "Invalid response structure from /detail: %s",
-                                api_response_data,
+                                f"Invalid response structure from /detail: {api_response_data}"
                             )
                             self.connection_state = CONNECTION_STATE_DISCONNECTED
                             current_data = {}
                             http_fetch_successful = False
                             break
-            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            except aiohttp.ClientConnectorError as e:
                 _LOGGER.warning(
-                    "Fetch attempt %d for /detail failed: %s", retries + 1, e
+                    f"Fetch attempt {retries + 1} for /detail failed due to connection error: {e}"
+                )
+                retries += 1
+            except aiohttp.ClientResponseError as e:
+                _LOGGER.warning(
+                    f"Fetch attempt {retries + 1} for /detail failed with HTTP status {e.status}: {e.message}"
+                )
+                retries += 1
+            except asyncio.TimeoutError: # Specifically for asyncio.TimeoutError from the request timeout
+                _LOGGER.warning(
+                    f"Fetch attempt {retries + 1} for /detail timed out after {TIMEOUT_API_CALL} seconds."
+                )
+                retries += 1
+            except aiohttp.ClientError as e: # Catch other ClientErrors
+                _LOGGER.warning(
+                    f"Fetch attempt {retries + 1} for /detail failed with generic ClientError: {e}"
                 )
                 retries += 1
                 if retries < MAX_RETRIES:
@@ -525,12 +591,12 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
     async def _send_http_command(
         self,
         endpoint: str,
-        extra_payload: Optional[Dict[str, Any]] = None, # Changed type hint
+        extra_payload: Optional[Dict[str, Any]] = None,
         expect_json_response: bool = True,
-    ):
+    ) -> Optional[Dict[str, Any]]:
         """Sends a command via HTTP POST, wrapped with auth details."""
         url = f"http://{self.host}:{DEFAULT_PORT}{endpoint}"
-        payload = {"serialNumber": self.serial_number, "checkCode": self.check_code}
+        payload = {API_KEY_SERIAL_NUMBER: self.serial_number, API_KEY_CHECK_CODE: self.check_code}
         if extra_payload:
             payload.update(extra_payload)
 
@@ -561,78 +627,85 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 f"Error sending HTTP command to {endpoint}: {e}", exc_info=True
             )
             return None
-        # return None # This line is unreachable due to the one above it.
+        # return None # This line is unreachable; already returned in except block.
 
-    async def pause_print(self):
-        """Pauses the current print using TCP M-code ~M25."""
-        return await self._send_tcp_command("~M25\r\n", "PAUSE PRINT")
+    async def pause_print(self) -> bool:
+        """Pauses the current print using TCP M-code."""
+        return await self._send_tcp_command(TCP_CMD_PAUSE_PRINT, "PAUSE PRINT")
 
-    async def resume_print(self):
-        """Resumes the current print using TCP M-code ~M24."""
-        return await self._send_tcp_command("~M24\r\n", "RESUME PRINT")
+    async def resume_print(self) -> bool:
+        """Resumes the current print using TCP M-code."""
+        return await self._send_tcp_command(TCP_CMD_RESUME_PRINT, "RESUME PRINT")
 
-    async def start_print(self, file_path: str):
-        """Starts a new print using TCP M-code ~M23."""
+    async def start_print(self, file_path: str) -> bool:
+        """Starts a new print using TCP M-code."""
+        # Determine the correct prefix for the file path
         if file_path.startswith(TCP_CMD_PRINT_FILE_PREFIX_USER):
-            command = f"~M23 {file_path}\r\n"
-        elif file_path.startswith("/"):
-            command = (
-                f"~M23 {TCP_CMD_PRINT_FILE_PREFIX_ROOT}{file_path.lstrip('/')}\r\n"
-            )
-        else:
-            command = f"~M23 {TCP_CMD_PRINT_FILE_PREFIX_USER}{file_path}\r\n"
+            # Path already has the user prefix, use as is
+            pass
+        elif file_path.startswith(TCP_CMD_M661_PATH_PREFIX): # e.g. /data/user/somefile.gcode
+             # Convert /data/user/ to 0:/user/ or /data/ to 0:/
+            if file_path.startswith(f"{TCP_CMD_M661_PATH_PREFIX}user/"):
+                file_path = f"{TCP_CMD_PRINT_FILE_PREFIX_USER}{file_path[len(TCP_CMD_M661_PATH_PREFIX)+len('user/'):]}"
+            else: # /data/somefile.gcode
+                file_path = f"{TCP_CMD_PRINT_FILE_PREFIX_ROOT}{file_path[len(TCP_CMD_M661_PATH_PREFIX):]}"
+        elif file_path.startswith("/"): # Absolute path not starting with /data/ (less likely for user files)
+             file_path = f"{TCP_CMD_PRINT_FILE_PREFIX_ROOT}{file_path.lstrip('/')}"
+        else: # Relative path, assume it's in user directory
+            file_path = f"{TCP_CMD_PRINT_FILE_PREFIX_USER}{file_path}"
 
+        command = TCP_CMD_START_PRINT_TEMPLATE.format(file_path=file_path)
         action = f"START PRINT ({file_path})"
         return await self._send_tcp_command(command, action)
 
-    async def cancel_print(self):
-        """Cancels the current print using TCP M-code ~M26."""
-        return await self._send_tcp_command("~M26\r\n", "CANCEL PRINT")
+    async def cancel_print(self) -> bool:
+        """Cancels the current print using TCP M-code."""
+        return await self._send_tcp_command(TCP_CMD_CANCEL_PRINT, "CANCEL PRINT")
 
-    async def toggle_light(self, on: bool):
+    async def toggle_light(self, on: bool) -> bool:
         """Toggles the printer light ON or OFF using TCP M-code commands."""
         if on:
-            command = "~M146 r255 g255 b255 F0\r\n"
+            command = TCP_CMD_LIGHT_ON_TEMPLATE
             action_desc = "TURN LIGHT ON"
         else:
-            command = "~M146 r0 g0 b0 F0\r\n"
+            command = TCP_CMD_LIGHT_OFF
             action_desc = "TURN LIGHT OFF"
         return await self._send_tcp_command(command, action_desc)
 
-    async def set_extruder_temperature(self, temperature: int):
-        """Sets the extruder temperature using TCP M-code ~M104."""
-        if not 0 <= temperature <= 300:  # Assuming max 300, adjust if different
+    async def set_extruder_temperature(self, temperature: int) -> bool:
+        """Sets the extruder temperature using TCP M-code."""
+        if not MIN_EXTRUDER_TEMP <= temperature <= MAX_EXTRUDER_TEMP:
             _LOGGER.error(
-                f"Invalid extruder temperature: {temperature}. Must be between 0 and 300."
+                f"Invalid extruder temperature: {temperature}. Must be between {MIN_EXTRUDER_TEMP} and {MAX_EXTRUDER_TEMP}."
             )
             return False
-        command = f"~M104 S{temperature}\r\n"
+        command = TCP_CMD_EXTRUDER_TEMP_TEMPLATE.format(temperature=temperature)
         action = f"SET EXTRUDER TEMPERATURE to {temperature}°C"
         return await self._send_tcp_command(command, action)
 
-    async def set_bed_temperature(self, temperature: int):
-        """Sets the bed temperature using TCP M-code ~M140."""
-        if not 0 <= temperature <= 120:  # Assuming max 120, adjust if different
+    async def set_bed_temperature(self, temperature: int) -> bool:
+        """Sets the bed temperature using TCP M-code."""
+        if not MIN_BED_TEMP <= temperature <= MAX_BED_TEMP:
             _LOGGER.error(
-                f"Invalid bed temperature: {temperature}. Must be between 0 and 120."
+                f"Invalid bed temperature: {temperature}. Must be between {MIN_BED_TEMP} and {MAX_BED_TEMP}."
             )
             return False
-        command = f"~M140 S{temperature}\r\n"
+        command = TCP_CMD_BED_TEMP_TEMPLATE.format(temperature=temperature)
         action = f"SET BED TEMPERATURE to {temperature}°C"
         return await self._send_tcp_command(command, action)
 
-    async def set_fan_speed(self, speed: int):
-        """Sets the fan speed using TCP M-code ~M106."""
-        if not 0 <= speed <= 255:
-            _LOGGER.error(f"Invalid fan speed: {speed}. Must be between 0 and 255.")
+    async def set_fan_speed(self, speed: int) -> bool:
+        """Sets the fan speed using TCP M-code."""
+        if not MIN_FAN_SPEED <= speed <= MAX_FAN_SPEED:
+            _LOGGER.error(f"Invalid fan speed: {speed}. Must be between {MIN_FAN_SPEED} and {MAX_FAN_SPEED}.")
             return False
-        command = f"~M106 S{speed}\r\n"
+        command = TCP_CMD_FAN_SPEED_TEMPLATE.format(speed=speed)
         action = f"SET FAN SPEED to {speed}"
         return await self._send_tcp_command(command, action)
 
-    async def turn_fan_off(self):
-        """Turns the fan off using TCP M-code ~M107."""
-        return await self._send_tcp_command("~M107\r\n", "TURN FAN OFF")
+    async def turn_fan_off(self) -> bool:
+        """Turns the fan off using TCP M-code."""
+        return await self._send_tcp_command(TCP_CMD_FAN_OFF, "TURN FAN OFF")
 
     async def move_axis(
         self,
@@ -640,11 +713,10 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         y: Optional[float] = None,
         z: Optional[float] = None,
         feedrate: Optional[int] = None,
-    ):
+    ) -> bool: # Assuming it returns bool based on _send_tcp_command
         """Moves printer axes using TCP M-code G0 (or G1, G0 is usually rapid, G1 for controlled feed)."""
-        # Using G0 for simplicity as per original. If feedrate control is critical, G1 might be better.
-        command_parts = ["~G0"]
-        action_parts = []
+        command_parts: List[str] = [TCP_CMD_MOVE_AXIS_TEMPLATE] # e.g. "~G0"
+        action_parts: List[str] = []
 
         if x is not None:
             command_parts.append(f"X{x}")
@@ -680,17 +752,17 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         """Moves printer axes by a relative amount using G91 then G0, then restores G90."""
         _LOGGER.info(f"Attempting relative move with offsets: x={x}, y={y}, z={z} at feedrate={feedrate}")
 
-        success_g91, _ = await self._send_tcp_command("~G91\r\n", "SET RELATIVE POSITIONING (G91)")
+        success_g91, _ = await self._send_tcp_command(TCP_CMD_RELATIVE_POSITIONING, "SET RELATIVE POSITIONING (G91)")
         if not success_g91:
             _LOGGER.error("Failed to set relative positioning (G91). Aborting relative move.")
             # Attempt to restore absolute positioning just in case, though G91 failure is problematic
-            await self._send_tcp_command("~G90\r\n", "RESTORE ABSOLUTE POSITIONING (G90) after G91 fail")
+            await self._send_tcp_command(TCP_CMD_ABSOLUTE_POSITIONING, "RESTORE ABSOLUTE POSITIONING (G90) after G91 fail")
             return False
 
         move_attempted = False
         success_move = True  # Default to true if no move is actually made
 
-        command_parts = ["~G0"]
+        command_parts = [TCP_CMD_MOVE_AXIS_TEMPLATE] # e.g. "~G0"
         action_parts_log = []
         if x is not None:
             command_parts.append(f"X{x}")
@@ -720,7 +792,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("No axis offset provided for relative move. Skipping G0 command.")
             # No move was attempted, so success_move remains True
 
-        success_g90, _ = await self._send_tcp_command("~G90\r\n", "RESTORE ABSOLUTE POSITIONING (G90)")
+        success_g90, _ = await self._send_tcp_command(TCP_CMD_ABSOLUTE_POSITIONING, "RESTORE ABSOLUTE POSITIONING (G90)")
         if not success_g90:
             _LOGGER.error("Critical: Failed to restore absolute positioning (G90) after relative move sequence.")
             # Even if G90 fails, the overall success depends on G91 and the move itself.
@@ -737,139 +809,116 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         command_file_path = file_path
         if not (file_path.startswith(TCP_CMD_PRINT_FILE_PREFIX_ROOT) or \
                 file_path.startswith(TCP_CMD_PRINT_FILE_PREFIX_USER) or \
-                file_path.startswith("/data/")):
+                file_path.startswith(TCP_CMD_M661_PATH_PREFIX)): # Check against /data/ as well
             command_file_path = f"{TCP_CMD_PRINT_FILE_PREFIX_USER}{file_path}"
-        elif file_path.startswith("/data/"):
-            command_file_path = f"0:{file_path}"
+        elif file_path.startswith(TCP_CMD_M661_PATH_PREFIX): # If it's /data/path/to/file.gcode
+            command_file_path = f"{TCP_CMD_PRINT_FILE_PREFIX_ROOT}{file_path[len(TCP_CMD_M661_PATH_PREFIX):]}" # Convert to 0:/path/to/file.gcode
+        # If already prefixed with 0:/user/ or 0:/, it's used as is.
 
-        command = f"~M30 {command_file_path}\r\n"
+        command = TCP_CMD_DELETE_FILE_TEMPLATE.format(file_path=command_file_path)
         action = f"DELETE FILE ({command_file_path})"
         return await self._send_tcp_command(command, action)
 
     async def disable_steppers(self) -> bool:
         """Disables all stepper motors on the printer (M18)."""
-        command = "~M18\r\n"
-        action = "DISABLE STEPPER MOTORS"
-        return await self._send_tcp_command(command, action)
+        return await self._send_tcp_command(TCP_CMD_DISABLE_STEPPERS, "DISABLE STEPPER MOTORS")
 
     async def enable_steppers(self) -> bool:
         """Enables all stepper motors on the printer (M17)."""
-        command = "~M17\r\n"
-        action = "ENABLE STEPPER MOTORS"
-        return await self._send_tcp_command(command, action)
+        return await self._send_tcp_command(TCP_CMD_ENABLE_STEPPERS, "ENABLE STEPPER MOTORS")
 
     async def set_speed_percentage(self, percentage: int) -> bool:
         """Sets the printer's speed factor override (M220 S<percentage>)."""
-        # Basic validation, though schema in __init__.py should also catch it.
-        if not 10 <= percentage <= 500: # Example range, adjust if printer has different limits
-            _LOGGER.error(f"Invalid speed percentage: {percentage}. Must be between 10 and 500 (example).")
+        if not MIN_SPEED_PERCENTAGE <= percentage <= MAX_SPEED_PERCENTAGE:
+            _LOGGER.error(f"Invalid speed percentage: {percentage}. Must be between {MIN_SPEED_PERCENTAGE} and {MAX_SPEED_PERCENTAGE}.")
             return False
-        command = f"~M220 S{percentage}\r\n"
+        command = TCP_CMD_SPEED_PERCENTAGE_TEMPLATE.format(percentage=percentage)
         action = f"SET SPEED PERCENTAGE to {percentage}%"
         return await self._send_tcp_command(command, action)
 
     async def set_flow_percentage(self, percentage: int) -> bool:
         """Sets the printer's flow rate percentage using M221."""
-        if not 50 <= percentage <= 200: # Example range
-            _LOGGER.error(f"Invalid flow percentage: {percentage}. Must be between 50 and 200.")
+        if not MIN_FLOW_PERCENTAGE <= percentage <= MAX_FLOW_PERCENTAGE:
+            _LOGGER.error(f"Invalid flow percentage: {percentage}. Must be between {MIN_FLOW_PERCENTAGE} and {MAX_FLOW_PERCENTAGE}.")
             return False
-        command = f"~M221 S{percentage}\r\n"
+        command = TCP_CMD_FLOW_PERCENTAGE_TEMPLATE.format(percentage=percentage)
         action = f"SET FLOW PERCENTAGE to {percentage}%"
         return await self._send_tcp_command(command, action)
 
     async def home_axes(self, axes: Optional[List[str]] = None) -> bool:
         """Homes specified axes or all axes if None using G28."""
-        command = "~G28"
+        command_base = TCP_CMD_HOME_AXES_TEMPLATE # "~G28"
         action_detail = "ALL AXES"
         if axes and isinstance(axes, list) and len(axes) > 0:
-            # Filter for valid axes and join them, e.g., "G28 XY"
             valid_axes_to_home = "".join(ax.upper() for ax in axes if ax.upper() in ["X", "Y", "Z"])
-            if valid_axes_to_home: # Only add if there are valid axes
-                command += f" {valid_axes_to_home}"
+            if valid_axes_to_home:
+                command_base += f" {valid_axes_to_home}"
                 action_detail = f"{valid_axes_to_home} AXES"
-        command += "\r\n"
+
+        command = command_base + "\r\n"
         action = f"HOME {action_detail}"
         return await self._send_tcp_command(command, action)
 
     async def filament_change(self) -> bool:
         """Initiates filament change procedure using M600."""
-        command = "~M600\r\n"
-        action = "FILAMENT CHANGE (M600)"
-        return await self._send_tcp_command(command, action)
+        return await self._send_tcp_command(TCP_CMD_FILAMENT_CHANGE, "FILAMENT CHANGE (M600)")
 
     async def emergency_stop(self) -> bool:
         """Sends emergency stop command M112."""
-        command = "~M112\r\n"
-        action = "EMERGENCY STOP (M112)"
         # M112 might not send an 'ok', printer might just halt or restart.
-        # Consider if a different response_terminator or no terminator is needed.
-        # For now, using default which might result in a timeout/false negative if printer halts before 'ok'.
-        return await self._send_tcp_command(command, action, response_terminator="ok\r\n")
+        # Using default TCP_RESPONSE_TERMINATOR_OK might result in a timeout/false negative.
+        return await self._send_tcp_command(TCP_CMD_EMERGENCY_STOP, "EMERGENCY STOP (M112)", response_terminator=TCP_RESPONSE_TERMINATOR_OK)
 
     async def list_files(self) -> bool:
         """Lists files on the printer's storage using M20."""
-        command = "~M20\r\n"
+        command = TCP_CMD_LIST_FILES_M20
         action = "LIST FILES (M20)"
         _LOGGER.info(f"Attempting to {action}")
         success, response = await self._send_tcp_command(command, action)
         if success:
             _LOGGER.info(f"Successfully received file list response for M20. Full response logged at DEBUG level by TCP client. Response snippet: {response[:200]}...")
-        # For now, just log; detailed parsing can be added later.
-        # _LOGGER.info(f"M20 (List Files) Response:\n{response}") # Alternative: log full response here
         return success
 
     async def report_firmware_capabilities(self) -> bool:
         """Reports firmware capabilities using M115."""
-        command = "~M115\r\n"
+        command = TCP_CMD_REPORT_FIRMWARE_CAPS
         action = "REPORT FIRMWARE CAPABILITIES (M115)"
         _LOGGER.info(f"Attempting to {action}")
         success, response = await self._send_tcp_command(command, action)
         if success:
             _LOGGER.info(f"Successfully received firmware capabilities response for M115. Full response logged at DEBUG level by TCP client. Response snippet: {response[:200]}...")
-        # _LOGGER.info(f"M115 (Firmware Capabilities) Response:\n{response}")
         return success
 
     async def play_beep(self, pitch: int, duration: int) -> bool:
         """Plays a beep sound using M300."""
-        # Basic input validation
-        if not (0 <= pitch <= 10000):  # Example range for pitch in Hz
-            _LOGGER.warning(f"Pitch {pitch} Hz is out of typical range (0-10000 Hz). Proceeding anyway.")
-        if not (0 <= duration <= 10000):  # Example range for duration in ms
-            _LOGGER.warning(f"Duration {duration} ms is out of typical range (0-10000 ms). Proceeding anyway.")
+        if not (MIN_BEEP_PITCH <= pitch <= MAX_BEEP_PITCH):
+            _LOGGER.warning(f"Pitch {pitch} Hz is out of typical range ({MIN_BEEP_PITCH}-{MAX_BEEP_PITCH} Hz). Proceeding anyway.")
+        if not (MIN_BEEP_DURATION <= duration <= MAX_BEEP_DURATION):
+            _LOGGER.warning(f"Duration {duration} ms is out of typical range ({MIN_BEEP_DURATION}-{MAX_BEEP_DURATION} ms). Proceeding anyway.")
 
-        command = f"~M300 S{pitch} P{duration}\r\n"
+        command = TCP_CMD_PLAY_BEEP_TEMPLATE.format(pitch=pitch, duration=duration)
         action = f"PLAY BEEP (Pitch: {pitch}, Duration: {duration})"
-        # _LOGGER.info(f"Attempting to {action}") # _send_tcp_command already logs this
         return await self._send_tcp_command(command, action)
 
     async def start_bed_leveling(self) -> bool:
         """Starts the bed leveling process using G29."""
-        command = "~G29\r\n"
-        action = "START BED LEVELING (G29)"
-        # _LOGGER.info(f"Attempting to {action}")
-        return await self._send_tcp_command(command, action)
+        return await self._send_tcp_command(TCP_CMD_START_BED_LEVELING, "START BED LEVELING (G29)")
 
     async def save_settings_to_eeprom(self) -> bool:
         """Saves settings to EEPROM using M500."""
-        command = "~M500\r\n"
-        action = "SAVE SETTINGS TO EEPROM (M500)"
-        # _LOGGER.info(f"Attempting to {action}")
-        return await self._send_tcp_command(command, action)
+        return await self._send_tcp_command(TCP_CMD_SAVE_SETTINGS_EEPROM, "SAVE SETTINGS TO EEPROM (M500)")
 
     async def read_settings_from_eeprom(self) -> bool:
         """Reads settings from EEPROM using M501."""
-        command = "~M501\r\n"
+        command = TCP_CMD_READ_SETTINGS_EEPROM
         action = "READ SETTINGS FROM EEPROM (M501)"
         _LOGGER.info(f"Attempting to {action}")
         success, response = await self._send_tcp_command(command, action)
         if success:
             _LOGGER.info(f"Successfully read settings from EEPROM (M501). Full response logged at DEBUG level by TCP client. Response snippet: {response[:200]}...")
-        # _LOGGER.info(f"M501 (Read Settings from EEPROM) Response:\n{response}")
         return success
 
     async def restore_factory_settings(self) -> bool:
         """Restores factory settings using M502."""
-        command = "~M502\r\n"
-        action = "RESTORE FACTORY SETTINGS (M502)"
         # M502 might also have non-standard response or cause a restart.
-        return await self._send_tcp_command(command, action, response_terminator="ok\r\n")
+        return await self._send_tcp_command(TCP_CMD_RESTORE_FACTORY_SETTINGS, "RESTORE FACTORY SETTINGS (M502)", response_terminator=TCP_RESPONSE_TERMINATOR_OK)

@@ -1,13 +1,24 @@
+"""TCP client for Flashforge 3D printers.
+
+Provides a client class to send M-code commands to Flashforge printers
+over a TCP connection, typically on port 8899. Implements a
+connect-send-receive-close pattern for each command.
+"""
 import asyncio
 import logging
 
 _LOGGER = logging.getLogger(__name__)
 
-# Define a default timeout for network operations (in seconds)
-DEFAULT_TCP_TIMEOUT = 5
-# Define a buffer size for reading responses
-TCP_BUFFER_SIZE = 1024
+from .const import (
+    DEFAULT_TCP_TIMEOUT,
+    TCP_BUFFER_SIZE,
+    TCP_RESPONSE_TERMINATOR_OK,
+    ENCODING_UTF8,
+)
 
+# For StreamReader and StreamWriter type hints
+from asyncio import StreamReader, StreamWriter
+from typing import Optional, Tuple # For Optional and tuple
 
 class FlashforgeTCPClient:
     """
@@ -22,7 +33,7 @@ class FlashforgeTCPClient:
     though that would require more complex connection state management.
     """
 
-    def __init__(self, host: str, port: int, timeout: float = DEFAULT_TCP_TIMEOUT):
+    def __init__(self, host: str, port: int, timeout: float = DEFAULT_TCP_TIMEOUT) -> None:
         """
         Initialize the TCP client.
         Args:
@@ -33,10 +44,10 @@ class FlashforgeTCPClient:
         self._host = host
         self._port = port
         self._timeout = timeout
-        self._reader = None
-        self._writer = None
+        self._reader: Optional[StreamReader] = None
+        self._writer: Optional[StreamWriter] = None
 
-    async def _ensure_connected(self):
+    async def _ensure_connected(self) -> None:
         """Ensures a connection is established. Reconnects if necessary."""
         if not self._writer or self._writer.is_closing():
             _LOGGER.debug(
@@ -63,7 +74,7 @@ class FlashforgeTCPClient:
                 self.close()
                 raise
 
-    def close(self):
+    def close(self) -> None:
         """Closes the connection."""
         if self._writer and not self._writer.is_closing():
             try:
@@ -75,8 +86,8 @@ class FlashforgeTCPClient:
         _LOGGER.debug("TCP connection closed.")
 
     async def send_command(
-        self, command: str, response_terminator: str = "ok\r\n"
-    ) -> tuple[bool, str]:
+        self, command: str, response_terminator: str = TCP_RESPONSE_TERMINATOR_OK
+    ) -> Tuple[bool, str]: # Use Tuple from typing
         """
         Connects, sends a command, waits for a response ending with the terminator, and closes.
 
@@ -98,7 +109,7 @@ class FlashforgeTCPClient:
             _LOGGER.debug(
                 f"Sending command to {self._host}:{self._port}: {command.strip()}"
             )
-            self._writer.write(command.encode("utf-8"))
+            self._writer.write(command.encode(ENCODING_UTF8))
             await asyncio.wait_for(self._writer.drain(), timeout=self._timeout)
 
             # Read response until terminator or timeout
@@ -113,11 +124,11 @@ class FlashforgeTCPClient:
                         )
                         break
 
-                    # Decode using utf-8, ignoring errors. This is to handle potential
+                    # Decode using ENCODING_UTF8, ignoring errors. This is to handle potential
                     # non-UTF-8 characters or binary noise from the printer without crashing.
                     # May result in some data loss if malformed multi-byte UTF-8 sequences
                     # or other encodings are present.
-                    decoded_chunk = chunk.decode("utf-8", errors="ignore")
+                    decoded_chunk = chunk.decode(ENCODING_UTF8, errors="ignore")
                     full_response_data += decoded_chunk
                     _LOGGER.debug(f"Received chunk: {decoded_chunk.strip()}")
 

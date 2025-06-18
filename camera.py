@@ -1,10 +1,12 @@
+"""Camera platform for Flashforge Adventurer 5M PRO integration."""
 import logging
-from typing import Callable
+from typing import Callable, Optional, List # Added Optional, List
 
 from homeassistant import config_entries, core
 from homeassistant.components.mjpeg.camera import MjpegCamera
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+# CoordinatorEntity is now inherited via FlashforgeEntity
+from .entity import FlashforgeEntity # Import the base class
 from .const import (
     DOMAIN,
     API_ATTR_CAMERA_STREAM_URL,
@@ -14,6 +16,9 @@ from .const import (
     MJPEG_DEFAULT_PORT,
     MJPEG_STREAM_PATH,
     MJPEG_DUMMY_URL,
+    CAMERA_UI_NAME, # Default UI name for the camera
+    CAMERA_DEFAULT_NAME_SUFFIX, # For FlashforgeEntity name_suffix
+    UNIQUE_ID_PREFIX, # For unique ID construction if needed, though FlashforgeEntity handles it
 )
 from .coordinator import FlashforgeDataUpdateCoordinator
 
@@ -23,14 +28,18 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: core.HomeAssistant,
     config_entry: config_entries.ConfigEntry,
-    async_add_entities: Callable,
+    async_add_entities: AddEntitiesCallback,
 ) -> bool:
-    """
-    Set up camera entities for the Flashforge Adventurer 5M PRO via a config entry.
-    """
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    """Set up Flashforge camera entities from a config entry.
 
-    cameras = [
+    Args:
+        hass: Home Assistant instance.
+        config_entry: The config entry.
+        async_add_entities: Callback to add entities.
+    """
+    coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+
+    cameras: List[FlashforgeAdventurer5MCamera] = [
         FlashforgeAdventurer5MCamera(coordinator),
     ]
 
@@ -38,67 +47,66 @@ async def async_setup_entry(
     return True
 
 
-class FlashforgeAdventurer5MCamera(CoordinatorEntity, MjpegCamera):
+class FlashforgeAdventurer5MCamera(FlashforgeEntity, MjpegCamera): # Inherit from FlashforgeEntity
     """
     A camera entity for the Flashforge Adventurer 5M PRO, using the MjpegCamera base class.
     This implementation assumes that the camera stream URL is available via the coordinator's data.
     """
 
-    def __init__(self, coordinator: FlashforgeDataUpdateCoordinator):
-        CoordinatorEntity.__init__(self, coordinator)
-        self.coordinator = coordinator
+    def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
+        """Initialize the Flashforge camera entity.
+
+        Args:
+            coordinator: The data update coordinator.
+        """
+        # Initialize FlashforgeEntity for coordinator and common attrs
+        # self._attr_name will be "Flashforge Camera"
+        # self._attr_unique_id will be "flashforge_{serial_number}_camera"
+        FlashforgeEntity.__init__(self, coordinator, name_suffix=CAMERA_DEFAULT_NAME_SUFFIX, unique_id_key="camera")
+        # Note: self.coordinator is set by FlashforgeEntity's __init__.
 
         detail = (
             self.coordinator.data.get("detail", {}) if self.coordinator.data else {}
         )
-        serial_number = getattr(self.coordinator, "serial_number", "unknown")
-        name = "Flashforge Adventurer 5M PRO Camera"
+        # serial_number for unique_id is handled by FlashforgeEntity
+
+        # The name passed to MjpegCamera is the entity's display name in Home Assistant.
+        # This can be different from self._attr_name if needed, here we use a specific constant.
+        mjpeg_camera_name: str = CAMERA_UI_NAME
 
         # Determine initial stream URL
-        initial_mjpeg_url = None
-        camera_stream_url_from_api = detail.get(API_ATTR_CAMERA_STREAM_URL)
-        ip_addr_from_api = detail.get(API_ATTR_IP_ADDR)
+        initial_mjpeg_url: Optional[str] = None
+        camera_stream_url_from_api: Optional[str] = detail.get(API_ATTR_CAMERA_STREAM_URL)
+        ip_addr_from_api: Optional[str] = detail.get(API_ATTR_IP_ADDR)
 
         if camera_stream_url_from_api:
             initial_mjpeg_url = camera_stream_url_from_api
-            _LOGGER.debug("Using 'cameraStreamUrl' from API: %s", initial_mjpeg_url)
+            _LOGGER.debug(f"Using 'cameraStreamUrl' from API: {initial_mjpeg_url}")
         elif ip_addr_from_api:
             initial_mjpeg_url = (
                 f"http://{ip_addr_from_api}:{MJPEG_DEFAULT_PORT}{MJPEG_STREAM_PATH}"
             )
             _LOGGER.debug(
-                "'cameraStreamUrl' missing, using fallback URL constructed from ipAddr: %s",
-                initial_mjpeg_url,
+                f"'cameraStreamUrl' missing, using fallback URL constructed from ipAddr: {initial_mjpeg_url}"
             )
         else:
             _LOGGER.warning(
-                "Coordinator does not have '%s' or '%s' in detail data. Camera will be unavailable initially.",
-                API_ATTR_CAMERA_STREAM_URL,
-                API_ATTR_IP_ADDR,
+                f"Coordinator does not have '{API_ATTR_CAMERA_STREAM_URL}' or '{API_ATTR_IP_ADDR}' in detail data. Camera will be unavailable initially."
             )
             # MjpegCamera will be initialized with mjpeg_url=None
 
         MjpegCamera.__init__(
             self,
-            name=name,
+            name=mjpeg_camera_name, # Use the specific display name for MjpegCamera
             mjpeg_url=initial_mjpeg_url,  # This can be None
             still_image_url=None,  # No separate still image URL
         )
-        self._attr_unique_id = f"flashforge_{serial_number}_camera"
-        self._attr_is_streaming = True
+        # self._attr_unique_id is set by FlashforgeEntity
+        self._attr_is_streaming = True # Specific to MjpegCamera / this camera type
 
-        # CRITICAL: Assign device_info, do NOT return it
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, serial_number)},
-            "name": "Flashforge Adventurer 5M PRO",
-            "manufacturer": "Flashforge",
-            "model": detail.get(
-                API_ATTR_MODEL, "Adventurer 5M PRO"
-            ),  # Use constant for model key
-            "sw_version": detail.get(
-                API_ATTR_FIRMWARE_VERSION
-            ),  # Use constant for firmware key
-        }
+        # device_info is inherited from FlashforgeEntity.
+        # MjpegCamera's base Camera class will use the device_info property.
+        # No need to set self._attr_device_info here.
 
     @property
     def stream_source(self) -> str | None:
@@ -120,16 +128,12 @@ class FlashforgeAdventurer5MCamera(CoordinatorEntity, MjpegCamera):
                 f"http://{ip_addr_from_api}:{MJPEG_DEFAULT_PORT}{MJPEG_STREAM_PATH}"
             )
             _LOGGER.debug(
-                "No '%s' in API, using fallback URL: %s",
-                API_ATTR_CAMERA_STREAM_URL,
-                fallback_url,
+                f"No '{API_ATTR_CAMERA_STREAM_URL}' in API, using fallback URL: {fallback_url}"
             )
             return fallback_url
         else:
             _LOGGER.debug(
-                "No '%s' or '%s' in API data for stream_source. Returning dummy URL.",
-                API_ATTR_CAMERA_STREAM_URL,
-                API_ATTR_IP_ADDR,
+                f"No '{API_ATTR_CAMERA_STREAM_URL}' or '{API_ATTR_IP_ADDR}' in API data for stream_source. Returning dummy URL."
             )
             return MJPEG_DUMMY_URL  # Indicates no valid current source
 
@@ -141,14 +145,12 @@ class FlashforgeAdventurer5MCamera(CoordinatorEntity, MjpegCamera):
         # It's updated by _handle_coordinator_update.
         if not self.coordinator.last_update_success:
             _LOGGER.debug(
-                "Camera '%s' unavailable: Coordinator update failed.", self.name
+                f"Camera '{self.name}' unavailable: Coordinator update failed."
             )
             return False
         if self._mjpeg_url is None or self._mjpeg_url == MJPEG_DUMMY_URL:
             _LOGGER.debug(
-                "Camera '%s' unavailable: MJPEG stream URL is not set or is dummy ('%s').",
-                self.name,
-                self._mjpeg_url,
+                f"Camera '{self.name}' unavailable: MJPEG stream URL is not set or is dummy ('{self._mjpeg_url}')."
             )
             return False
         return True
@@ -173,28 +175,23 @@ class FlashforgeAdventurer5MCamera(CoordinatorEntity, MjpegCamera):
 
         if effective_new_url != self._mjpeg_url:
             _LOGGER.debug(
-                "Updating camera _mjpeg_url from '%s' to: '%s'",
-                self._mjpeg_url,
-                effective_new_url,
+                f"Updating camera _mjpeg_url from '{self._mjpeg_url}' to: '{effective_new_url}'"
             )
             self._mjpeg_url = effective_new_url
             # If using HA core > 2023.X.Y, this might trigger reconnection in MjpegCamera if URL changes.
 
         # Update device info attributes like firmware version
-        if (
-            self.coordinator.data and self._attr_device_info
-        ):  # Ensure data and device_info exist
-            detail = self.coordinator.data.get("detail", {})
-            fw_version = detail.get(API_ATTR_FIRMWARE_VERSION)
-            if fw_version and self._attr_device_info.get("sw_version") != fw_version:
-                self._attr_device_info["sw_version"] = fw_version
+        # This is now handled by the inherited device_info property from FlashforgeEntity.
+        # The self.async_write_ha_state() call will trigger a re-read of that property by HA.
+        # No need to update self._attr_device_info directly.
 
         self.async_write_ha_state()
 
-    async def async_added_to_hass(self):
-        """Register for coordinator updates and update state on add."""
-        await super().async_added_to_hass()
-        self._handle_coordinator_update()
-        self.async_on_remove(
-            self.coordinator.async_add_listener(self._handle_coordinator_update)
-        )
+    async def async_added_to_hass(self) -> None:
+        """Handle when entity is added."""
+        # Call FlashforgeEntity's async_added_to_hass to set up coordinator listener
+        # and initial update.
+        await FlashforgeEntity.async_added_to_hass(self)
+
+        # Call MjpegCamera's async_added_to_hass for its specific setup (e.g., stream).
+        await MjpegCamera.async_added_to_hass(self)

@@ -3,126 +3,206 @@
 # Integration domain
 DOMAIN = "flashforge_adventurer5m"
 
-# Default settings
-DEFAULT_SCAN_INTERVAL = 10  # seconds
-DEFAULT_PRINTING_SCAN_INTERVAL = 2 # seconds
-DEFAULT_PORT = 8898
-DEFAULT_MCODE_PORT = 8899
-DEFAULT_HOST = "printer.local"
+# Manufacturer and Model
+MANUFACTURER = "Flashforge"
+DEVICE_MODEL_AD5M_PRO = "Adventurer 5M PRO" # Default model name
+DEVICE_NAME_DEFAULT = f"{MANUFACTURER} {DEVICE_MODEL_AD5M_PRO}" # Full default device name for UI
 
-# Configuration keys
-CONF_PRINTING_SCAN_INTERVAL = "printing_scan_interval"
+# Default settings for connection, polling
+DEFAULT_HOST = "printer.local"
+DEFAULT_PORT = 8898  # HTTP API port
+DEFAULT_MCODE_PORT = 8899  # TCP M-Code port
+DEFAULT_SCAN_INTERVAL = 10  # seconds, for regular status updates
+DEFAULT_PRINTING_SCAN_INTERVAL = 2  # seconds, when printer is printing
+DEFAULT_UNKNOWN_SERIAL = "unknown" # Default for unknown serial number
+
+# Configuration keys (used in config_flow.py, options_flow.py, __init__.py)
+CONF_PRINTING_SCAN_INTERVAL = "printing_scan_interval" # Key for options flow
 
 # Timeout settings (in seconds)
-TIMEOUT_API_CALL = 10
-TIMEOUT_COMMAND = 5
-TIMEOUT_CONNECTION_TEST = 5
+TIMEOUT_API_CALL = 10  # For general HTTP API calls in coordinator
+TIMEOUT_COMMAND = 5    # For specific commands (used as COORDINATOR_COMMAND_TIMEOUT in coordinator)
+TIMEOUT_CONNECTION_TEST = 5 # For connection test in config_flow
+DEFAULT_TCP_TIMEOUT = 5 # Default timeout for TCP client operations in flashforge_tcp.py
 
-# Retry settings
+# Retry settings (for config_flow connection test and coordinator HTTP calls)
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
-BACKOFF_FACTOR = 1.5
+BACKOFF_FACTOR = 1.5 # Factor to increase delay for subsequent retries
 
-# API endpoints
-ENDPOINT_DETAIL = "/detail"
-# ENDPOINT_PAUSE = "/pause" # Removed, functionality moved to TCP M-code
-# ENDPOINT_START = "/start" # Removed, functionality moved to TCP M-code
-# ENDPOINT_CANCEL = "/cancel" # Removed, functionality moved to TCP M-code
+# API Endpoints
+ENDPOINT_DETAIL = "/detail" # For fetching detailed printer status
 
-# Printer states
+# API Payload Keys (for HTTP POST requests)
+API_KEY_SERIAL_NUMBER = "serialNumber"
+API_KEY_CHECK_CODE = "checkCode"
 
-# Status groups
+# API Response Keys (expected in JSON responses)
+API_KEY_CODE = "code"       # Typically 0 for success
+API_KEY_MESSAGE = "message" # Response message
+
+# API Response Values
+API_VALUE_SUCCESS_CODE = 0 # Expected value of "code" field for successful operations
+
+# Key attributes for API response validation
+REQUIRED_RESPONSE_FIELDS = [API_KEY_CODE, API_KEY_MESSAGE, API_ATTR_DETAIL] # Updated to use constants
+REQUIRED_DETAIL_FIELDS = [
+    "status", # API_ATTR_STATUS
+    "ipAddr", # API_ATTR_IP_ADDR
+    "firmwareVersion", # API_ATTR_FIRMWARE_VERSION
+    "doorStatus", # API_ATTR_DOOR_STATUS
+    "lightStatus", # API_ATTR_LIGHT_STATUS
+] # These are exact keys from the API `detail` object.
+
+# Printer States (values for API_ATTR_STATUS)
 PRINTING_STATES = ["BUILDING", "PRINTING", "RUNNING"]
 ERROR_STATES = ["ERROR", "FAILED", "FATAL"]
 
-# Door status
+# Common states from API string values (often for binary sensors)
 DOOR_OPEN = "OPEN"
+LIGHT_ON = "open" # API uses "open" for light on, "close" for light off
+AUTO_SHUTDOWN_ENABLED_STATE = "open"
+FAN_STATUS_ON_STATE = "open"
 
-# Light status
-LIGHT_ON = "open"
-
-# Binary sensor "on" states from API string values
-AUTO_SHUTDOWN_ENABLED_STATE = "open"  # Based on API: autoShutdown: "open" / "close"
-FAN_STATUS_ON_STATE = (
-    "open"  # Based on API: externalFanStatus/internalFanStatus: "open" / "close"
-)
-
-# Connection states
+# Connection States (internal state for coordinator)
 CONNECTION_STATE_UNKNOWN = "unknown"
 CONNECTION_STATE_CONNECTED = "connected"
 CONNECTION_STATE_DISCONNECTED = "disconnected"
 
-# Common error codes
-ERROR_CODE_NONE = "0"
+# Common Error Codes from API (value for API_ATTR_ERROR_CODE)
+ERROR_CODE_NONE = "0" # Indicates no error
 
-# Key attributes for validation
-REQUIRED_RESPONSE_FIELDS = ["code", "message", "detail"]
-REQUIRED_DETAIL_FIELDS = [
-    "status",
-    "ipAddr",
-    "firmwareVersion",
-    "doorStatus",
-    "lightStatus",
-]
-
-# API Attribute Keys (used in binary_sensor.py, sensor.py, camera.py, etc.)
+# API Attribute Keys (used to access specific fields in the API `detail` object or coordinator data)
+# These should match the keys returned by the printer's HTTP API
 API_ATTR_STATUS = "status"
 API_ATTR_ERROR_CODE = "errorCode"
 API_ATTR_DOOR_STATUS = "doorStatus"
 API_ATTR_LIGHT_STATUS = "lightStatus"
-API_ATTR_AUTO_SHUTDOWN = "autoShutdown"
-API_ATTR_EXTERNAL_FAN_STATUS = "externalFanStatus"
-API_ATTR_INTERNAL_FAN_STATUS = "internalFanStatus"
+API_ATTR_AUTO_SHUTDOWN = "autoShutdown" # e.g. "open" / "close"
+API_ATTR_EXTERNAL_FAN_STATUS = "externalFanStatus" # e.g. "open" / "close"
+API_ATTR_INTERNAL_FAN_STATUS = "internalFanStatus" # e.g. "open" / "close"
 API_ATTR_PRINT_FILE_NAME = "printFileName"
-API_ATTR_PRINT_PROGRESS = "printProgress"
+API_ATTR_PRINT_PROGRESS = "printProgress" # e.g. "0.50" for 50%
 API_ATTR_PRINT_LAYER = "printLayer"
 API_ATTR_TARGET_PRINT_LAYER = "targetPrintLayer"
-API_ATTR_PRINT_DURATION = "printDuration"
-API_ATTR_ESTIMATED_TIME = "estimatedTime"
+API_ATTR_PRINT_DURATION = "printDuration" # in seconds
+API_ATTR_ESTIMATED_TIME = "estimatedTime" # in seconds (remaining)
 API_ATTR_FIRMWARE_VERSION = "firmwareVersion"
 API_ATTR_IP_ADDR = "ipAddr"
 API_ATTR_CAMERA_STREAM_URL = "cameraStreamUrl"
-API_ATTR_MODEL = "model"  # API key for device model
-API_ATTR_DETAIL = "detail"  # For accessing the nested detail object
+API_ATTR_MODEL = "model" # Printer model as reported by API
+API_ATTR_DETAIL = "detail"  # Key for the nested detail object in API response
 
-# MJPEG Camera Settings
-MJPEG_DEFAULT_PORT = 8080
-MJPEG_STREAM_PATH = "/?action=stream"
-MJPEG_DUMMY_URL = "http://0.0.0.0/"
-
-# TCP Command Path Prefixes (for M23 start print command)
-TCP_CMD_PRINT_FILE_PREFIX_USER = "0:/user/"
-TCP_CMD_PRINT_FILE_PREFIX_ROOT = "0:/"
-
-# Endstop Sensor Constants
-# These API_ATTR keys are placeholders for how we'll store parsed M119 output in coordinator.data
+# API Attribute Keys for Endstop Status (parsed from M119, stored in coordinator.data)
 API_ATTR_X_ENDSTOP_STATUS = "x_endstop_status"
 API_ATTR_Y_ENDSTOP_STATUS = "y_endstop_status"
 API_ATTR_Z_ENDSTOP_STATUS = "z_endstop_status"
 API_ATTR_FILAMENT_ENDSTOP_STATUS = "filament_endstop_status"
 
-# Endstop Sensor Names
-NAME_X_ENDSTOP = "X Endstop"
-NAME_Y_ENDSTOP = "Y Endstop"
-NAME_Z_ENDSTOP = "Z Endstop"
-NAME_FILAMENT_ENDSTOP = "Filament Sensor"
-
-# Endstop Sensor Icons
-ICON_X_ENDSTOP = "mdi:axis-x-arrow"
-ICON_Y_ENDSTOP = "mdi:axis-y-arrow"
-ICON_Z_ENDSTOP = "mdi:axis-z-arrow"
-ICON_FILAMENT_ENDSTOP = "mdi:filament"
-
-# Bed Leveling Sensor API Attribute Key
+# API Attribute Key for Bed Leveling Status (parsed from M420, stored in coordinator.data)
 API_ATTR_BED_LEVELING_STATUS = "bed_leveling_status"
 
-# Bed Leveling Sensor Name
-NAME_BED_LEVELING = "Bed Leveling Active"
+# MJPEG Camera Settings
+MJPEG_DEFAULT_PORT = 8080
+MJPEG_STREAM_PATH = "/?action=stream"
+MJPEG_DUMMY_URL = "http://0.0.0.0/" # Dummy URL for unavailable camera
 
-# Bed Leveling Sensor Icon
-ICON_BED_LEVELING = "mdi:checkerboard" # Or mdi:format-list-bulleted-type
+# TCP M-Code Command Settings
+TCP_RESPONSE_TERMINATOR_OK = "ok\r\n"
+ENCODING_UTF8 = "utf-8"
 
-# Service Name Constants
-# (It's better to import these from __init__.py if they are defined there,
-# but if defined here, ensure they match __init__.py and services.yaml)
-SERVICE_MOVE_RELATIVE = "move_relative"
+# TCP M-Code Command Strings
+TCP_CMD_PAUSE_PRINT = "~M25\r\n"
+TCP_CMD_RESUME_PRINT = "~M24\r\n"
+TCP_CMD_CANCEL_PRINT = "~M26\r\n"
+TCP_CMD_GET_ENDSTOPS = "~M119\r\n"
+TCP_CMD_GET_POSITION = "~M114\r\n"
+TCP_CMD_GET_BED_LEVEL_STATUS = "~M420 S0\r\n" # Get bed leveling state
+TCP_CMD_LIST_FILES_M661 = "~M661\r\n" # Alternative to M20 for file listing, seems to provide full paths
+TCP_CMD_LIST_FILES_M20 = "~M20\r\n"   # Standard G-code for listing SD card files
+TCP_CMD_LIGHT_ON_TEMPLATE = "~M146 r255 g255 b255 F0\r\n" # F0 for chamber light?
+TCP_CMD_LIGHT_OFF = "~M146 r0 g0 b0 F0\r\n"
+TCP_CMD_EXTRUDER_TEMP_TEMPLATE = "~M104 S{temperature}\r\n"
+TCP_CMD_BED_TEMP_TEMPLATE = "~M140 S{temperature}\r\n"
+TCP_CMD_FAN_SPEED_TEMPLATE = "~M106 S{speed}\r\n"
+TCP_CMD_FAN_OFF = "~M107\r\n"
+TCP_CMD_MOVE_AXIS_TEMPLATE = "~G0" # Base for G0 move, add X,Y,Z,F as needed
+TCP_CMD_RELATIVE_POSITIONING = "~G91\r\n"
+TCP_CMD_ABSOLUTE_POSITIONING = "~G90\r\n"
+TCP_CMD_DELETE_FILE_TEMPLATE = "~M30 {file_path}\r\n"
+TCP_CMD_DISABLE_STEPPERS = "~M18\r\n"
+TCP_CMD_ENABLE_STEPPERS = "~M17\r\n"
+TCP_CMD_SPEED_PERCENTAGE_TEMPLATE = "~M220 S{percentage}\r\n"
+TCP_CMD_FLOW_PERCENTAGE_TEMPLATE = "~M221 S{percentage}\r\n"
+TCP_CMD_HOME_AXES_TEMPLATE = "~G28" # Add axes like X, Y, Z or empty for all
+TCP_CMD_FILAMENT_CHANGE = "~M600\r\n"
+TCP_CMD_EMERGENCY_STOP = "~M112\r\n"
+TCP_CMD_REPORT_FIRMWARE_CAPS = "~M115\r\n"
+TCP_CMD_PLAY_BEEP_TEMPLATE = "~M300 S{pitch} P{duration}\r\n"
+TCP_CMD_START_BED_LEVELING = "~G29\r\n"
+TCP_CMD_SAVE_SETTINGS_EEPROM = "~M500\r\n"
+TCP_CMD_READ_SETTINGS_EEPROM = "~M501\r\n"
+TCP_CMD_RESTORE_FACTORY_SETTINGS = "~M502\r\n"
+TCP_CMD_START_PRINT_TEMPLATE = "~M23 {file_path}\r\n" # Template for M23 (select file to print)
+
+# TCP Command Path Prefixes (for M23 start print command, M30 delete file)
+TCP_CMD_PRINT_FILE_PREFIX_USER = "0:/user/"
+TCP_CMD_PRINT_FILE_PREFIX_ROOT = "0:/" # For paths like /data/.. becomes 0:/data/...
+TCP_CMD_M661_PATH_PREFIX = "/data/" # File paths from M661 start with this
+
+# M661 File List Parsing
+M661_SEPARATOR = "::\x00\x00\x00"
+M661_CMD_PREFIX = "CMD M661 Received.\r\ok\r\n" # Note: original had a typo here, fixed ok
+M661_FILE_EXT_GCODE = ".gcode"
+M661_FILE_EXT_GX = ".gx"
+
+# Validation Limits for Service Calls
+MIN_EXTRUDER_TEMP = 0
+MAX_EXTRUDER_TEMP = 300 # Example, adjust if needed
+MIN_BED_TEMP = 0
+MAX_BED_TEMP = 120    # Example, adjust if needed
+MIN_FAN_SPEED = 0
+MAX_FAN_SPEED = 255
+MIN_SPEED_PERCENTAGE = 10 # Example
+MAX_SPEED_PERCENTAGE = 500 # Example
+MIN_FLOW_PERCENTAGE = 50 # Example
+MAX_FLOW_PERCENTAGE = 200 # Example
+MIN_BEEP_PITCH = 0
+MAX_BEEP_PITCH = 10000 # Hz
+MIN_BEEP_DURATION = 0
+MAX_BEEP_DURATION = 10000 # ms
+
+# Internal unique ID prefix
+UNIQUE_ID_PREFIX = "flashforge_"
+
+# Sensor / Entity names, icons (already in const.py, just ensuring they are reviewed)
+# NAME_X_ENDSTOP, ICON_X_ENDSTOP etc. are fine.
+# NAME_BED_LEVELING, ICON_BED_LEVELING are fine.
+
+# Buffer size for TCP client
+TCP_BUFFER_SIZE = 1024
+
+# Default entity name for the camera in Home Assistant UI (if not overridden)
+CAMERA_DEFAULT_NAME_SUFFIX = "Camera"
+CAMERA_UI_NAME = f"{MANUFACTURER} {DEVICE_MODEL_AD5M_PRO} Camera"
+
+# Service names are defined in __init__.py and services.yaml
+# No need to duplicate all service string names here unless used across multiple modules
+# from const.py directly.
+
+# Cleanup: Removed ENDPOINT_PAUSE, ENDPOINT_START, ENDPOINT_CANCEL as they are commented out.
+# Cleanup: SERVICE_MOVE_RELATIVE seems to be defined in __init__.py and services.yaml,
+# it's okay here if some other module needs it but ideally __init__ is the source of truth for service names.
+# For now, leaving SERVICE_MOVE_RELATIVE if it was intentionally there for other uses.
+# Actually, SERVICE_MOVE_RELATIVE is not in the service registration list in __init__.py,
+# but it IS used in coordinator.py for a method name, and in services.yaml.
+# This is a slight inconsistency. If it's a service, it should be in __init__.py's registration.
+# For now, I will assume it's a valid service and keep the constant.
+SERVICE_MOVE_RELATIVE = "move_relative" # Example, ensure it's registered in __init__.py if a service.
+
+# Note: API_ATTR_MODEL is "model", DEVICE_MODEL_AD5M_PRO is "Adventurer 5M PRO"
+# The first is the API key, the second is a specific string value.
+# DEVICE_NAME_DEFAULT uses MANUFACTURER and DEVICE_MODEL_AD5M_PRO.
+# In entity.py, device_info model uses: detail.get(API_ATTR_MODEL, DEVICE_MODEL_AD5M_PRO)
+# This means it tries to get the model from API, if not found, defaults to "Adventurer 5M PRO".
+# This is a good approach.
