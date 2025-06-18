@@ -15,50 +15,51 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     CONF_PRINTING_SCAN_INTERVAL,
     DEFAULT_PRINTING_SCAN_INTERVAL,
-    ATTR_GCODE, # For the new service
-    SERVICE_SEND_GCODE, # For the new service
+    ATTR_GCODE,
+    SERVICE_SEND_GCODE,
+    # Service Names
+    SERVICE_PAUSE_PRINT,
+    SERVICE_START_PRINT,
+    SERVICE_CANCEL_PRINT,
+    SERVICE_TOGGLE_LIGHT,
+    SERVICE_RESUME_PRINT,
+    SERVICE_SET_EXTRUDER_TEMPERATURE,
+    SERVICE_SET_BED_TEMPERATURE,
+    SERVICE_SET_FAN_SPEED,
+    SERVICE_TURN_FAN_OFF,
+    SERVICE_MOVE_AXIS,
+    SERVICE_MOVE_RELATIVE,
+    SERVICE_DELETE_FILE,
+    SERVICE_DISABLE_STEPPERS,
+    SERVICE_ENABLE_STEPPERS,
+    SERVICE_SET_SPEED_PERCENTAGE,
+    SERVICE_SET_FLOW_PERCENTAGE,
+    SERVICE_HOME_AXES,
+    SERVICE_EMERGENCY_STOP,
+    SERVICE_LIST_FILES,
+    SERVICE_REPORT_FIRMWARE_CAPABILITIES,
+    SERVICE_PLAY_BEEP,
+    SERVICE_START_BED_LEVELING,
+    SERVICE_SAVE_SETTINGS_TO_EEPROM,
+    SERVICE_READ_SETTINGS_FROM_EEPROM,
+    SERVICE_FILAMENT_CHANGE,
+    SERVICE_RESTORE_FACTORY_SETTINGS,
+    # Service Attributes
+    ATTR_FILE_PATH,
+    ATTR_PERCENTAGE,
+    ATTR_HOME_X,
+    ATTR_HOME_Y,
+    ATTR_HOME_Z,
+    ATTR_TEMPERATURE,
+    ATTR_SPEED,
 )
 from .coordinator import FlashforgeDataUpdateCoordinator
 from homeassistant.core import ServiceCall
 
 _LOGGER = logging.getLogger(__name__)
 
-# Service Attributes
-ATTR_FILE_PATH: str = "file_path"
-ATTR_PERCENTAGE: str = "percentage"
-ATTR_HOME_X: str = "x"
-ATTR_HOME_Y: str = "y"
-ATTR_HOME_Z: str = "z"
-
-# Services
-SERVICE_PAUSE_PRINT: str = "pause_print"
-SERVICE_START_PRINT: str = "start_print"
-SERVICE_CANCEL_PRINT: str = "cancel_print"
-SERVICE_TOGGLE_LIGHT: str = "toggle_light"
-SERVICE_RESUME_PRINT: str = "resume_print"
-SERVICE_SET_EXTRUDER_TEMPERATURE: str = "set_extruder_temperature"
-SERVICE_SET_BED_TEMPERATURE: str = "set_bed_temperature"
-SERVICE_SET_FAN_SPEED: str = "set_fan_speed"
-SERVICE_TURN_FAN_OFF: str = "turn_fan_off"
-SERVICE_MOVE_AXIS: str = "move_axis"
-SERVICE_DELETE_FILE: str = "delete_file"
-SERVICE_DISABLE_STEPPERS: str = "disable_steppers"
-SERVICE_ENABLE_STEPPERS: str = "enable_steppers"
-SERVICE_SET_SPEED_PERCENTAGE: str = "set_speed_percentage"
-SERVICE_SET_FLOW_PERCENTAGE: str = "set_flow_percentage"
-SERVICE_HOME_AXES: str = "home_axes"
-SERVICE_EMERGENCY_STOP: str = "emergency_stop"
-SERVICE_LIST_FILES: str = "list_files"
-SERVICE_REPORT_FIRMWARE_CAPABILITIES: str = "report_firmware_capabilities"
-SERVICE_PLAY_BEEP: str = "play_beep"
-SERVICE_START_BED_LEVELING: str = "start_bed_leveling"
-SERVICE_SAVE_SETTINGS_TO_EEPROM: str = "save_settings_to_eeprom"
-SERVICE_READ_SETTINGS_FROM_EEPROM: str = "read_settings_from_eeprom"
-SERVICE_FILAMENT_CHANGE: str = "filament_change"
-SERVICE_RESTORE_FACTORY_SETTINGS: str = "restore_factory_settings"
-SERVICE_MOVE_RELATIVE: str = "move_relative"
-
-
+# Platforms
+# Platforms are now defined after imports from .const
 from homeassistant.const import Platform
 
 # Platforms

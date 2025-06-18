@@ -30,39 +30,59 @@ from .const import (
     API_ATTR_ESTIMATED_TIME,
     API_KEY_CODE,
     API_KEY_MESSAGE,
-    API_ATTR_X_POSITION, # For X coordinate sensor
-    API_ATTR_Y_POSITION, # For Y coordinate sensor
-    API_ATTR_Z_POSITION, # For Z coordinate sensor
-    # TODO: Define and import other API_ATTR_* constants for remaining string keys in SENSOR_DEFINITIONS
-    # For keys in "detail" object that are not covered by specific API_ATTR_*
-    # For now, I'll list some that are directly used as string keys:
-    # "chamberTemp", "chamberTargetTemp", "leftTemp", "leftTargetTemp", "rightTemp", "rightTargetTemp",
-    # "platTemp", "platTargetTemp", "cumulativeFilament", "cumulativePrintTime", "fillAmount",
-    # "leftFilamentType", "rightFilamentType", "estimatedLeftLen", "estimatedLeftWeight",
-    # "estimatedRightLen", "estimatedRightWeight", "chamberFanSpeed", "coolingFanSpeed", "tvoc",
-    # "remainingDiskSpace", "zAxisCompensation", "autoShutdownTime", "currentPrintSpeed",
-    # "flashRegisterCode", "location", "macAddr", "measure", "nozzleCnt", "nozzleModel",
-    # "nozzleStyle", "pid", "polarRegisterCode", "printSpeedAdjust"
-    # And top-level custom keys used in coordinator.data
-    # "printable_files", "x_position", "y_position", "z_position"
-    # Note: x_position, y_position, z_position are now covered by API_ATTR_*
+    API_ATTR_X_POSITION,
+    API_ATTR_Y_POSITION,
+    API_ATTR_Z_POSITION,
+    # Newly added constants for SENSOR_DEFINITIONS keys
+    API_ATTR_CHAMBER_TEMP,
+    API_ATTR_CHAMBER_TARGET_TEMP,
+    API_ATTR_LEFT_TEMP,
+    API_ATTR_LEFT_TARGET_TEMP, # Ensure this is imported
+    API_ATTR_RIGHT_TEMP,
+    API_ATTR_RIGHT_TARGET_TEMP, # Ensure this is imported
+    API_ATTR_PLAT_TEMP,
+    API_ATTR_PLAT_TARGET_TEMP, # Ensure this is imported
+    API_ATTR_CUMULATIVE_FILAMENT,
+    API_ATTR_CUMULATIVE_PRINT_TIME,
+    API_ATTR_FILL_AMOUNT,
+    API_ATTR_LEFT_FILAMENT_TYPE,
+    API_ATTR_RIGHT_FILAMENT_TYPE,
+    API_ATTR_ESTIMATED_LEFT_LEN,
+    API_ATTR_ESTIMATED_LEFT_WEIGHT,
+    API_ATTR_ESTIMATED_RIGHT_LEN,
+    API_ATTR_ESTIMATED_RIGHT_WEIGHT,
+    API_ATTR_CHAMBER_FAN_SPEED,
+    API_ATTR_COOLING_FAN_SPEED_RPM, # Renamed from coolingFanSpeed for clarity
+    API_ATTR_TVOC,
+    API_ATTR_REMAINING_DISK_SPACE,
+    API_ATTR_Z_AXIS_COMPENSATION,
+    API_ATTR_AUTO_SHUTDOWN_TIME,
+    API_ATTR_CURRENT_PRINT_SPEED,
+    API_ATTR_FLASH_REGISTER_CODE,
+    API_ATTR_LOCATION,
+    API_ATTR_MAC_ADDR,
+    API_ATTR_MEASURE,
+    API_ATTR_NOZZLE_COUNT,
+    API_ATTR_NOZZLE_MODEL,
+    API_ATTR_NOZZLE_STYLE,
+    API_ATTR_PID,
+    API_ATTR_POLAR_REGISTER_CODE,
+    API_ATTR_PRINT_SPEED_ADJUST,
+    API_ATTR_PRINTABLE_FILES, # For the coordinator-added key
 )
 from .coordinator import FlashforgeDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 # Centralized sensor definitions: key: (name, unit, device_class, state_class, is_top_level, is_percentage)
-# Using API_ATTR_* constants as keys where applicable.
 SENSOR_DEFINITIONS = {
     # Top-Level
-    API_KEY_CODE: ("Status Code", None, None, SensorStateClass.MEASUREMENT, True, False), # "code"
-    API_KEY_MESSAGE: ("Status Message", None, None, None, True, False), # "message"
-    # Detail section - using string literals for keys that are directly from API detail object
-    # and don't have a more specific API_ATTR_* constant yet (e.g. chamberTemp)
-    # or if the API_ATTR_* constant matches the string literal.
+    API_KEY_CODE: ("Status Code", None, None, SensorStateClass.MEASUREMENT, True, False),
+    API_KEY_MESSAGE: ("Status Message", None, None, None, True, False),
+    # Detail section
     API_ATTR_STATUS: ("Status", None, None, None, False, False),
     API_ATTR_FIRMWARE_VERSION: ("Firmware Version", None, None, None, False, False),
-    "chamberTemp": ( # TODO: Consider API_ATTR_CHAMBER_TEMP if defined
+    API_ATTR_CHAMBER_TEMP: (
         "Chamber Temperature",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
@@ -70,7 +90,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "chamberTargetTemp": (
+    API_ATTR_CHAMBER_TARGET_TEMP: (
         "Chamber Target Temperature",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
@@ -78,7 +98,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "leftTemp": (
+    API_ATTR_LEFT_TEMP: (
         "Left Nozzle Temperature",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
@@ -86,7 +106,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "leftTargetTemp": (
+    API_ATTR_LEFT_TARGET_TEMP: (
         "Left Nozzle Target Temperature",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
@@ -94,7 +114,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "rightTemp": (
+    API_ATTR_RIGHT_TEMP: (
         "Right Nozzle Temperature",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
@@ -102,7 +122,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "rightTargetTemp": (
+    API_ATTR_RIGHT_TARGET_TEMP: (
         "Right Nozzle Target Temperature",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
@@ -110,7 +130,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "platTemp": (
+    API_ATTR_PLAT_TEMP: (
         "Platform Temperature",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
@@ -118,7 +138,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "platTargetTemp": (
+    API_ATTR_PLAT_TARGET_TEMP: (
         "Platform Target Temperature",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
@@ -126,11 +146,10 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    # Example for printProgress which has API_ATTR_PRINT_PROGRESS
     API_ATTR_PRINT_PROGRESS: (
         "Print Progress",
         PERCENTAGE,
-        SensorDeviceClass.BATTERY, # Using BATTERY device class for percentage
+        SensorDeviceClass.BATTERY,
         SensorStateClass.MEASUREMENT,
         False,
         True,
@@ -138,7 +157,7 @@ SENSOR_DEFINITIONS = {
     API_ATTR_PRINT_DURATION: (
         "Print Duration",
         UnitOfTime.SECONDS,
-        SensorDeviceClass.DURATION, # Standard DURATION device class
+        SensorDeviceClass.DURATION,
         SensorStateClass.MEASUREMENT,
         False,
         False,
@@ -146,12 +165,12 @@ SENSOR_DEFINITIONS = {
     API_ATTR_ESTIMATED_TIME: (
         "Estimated Time Remaining",
         UnitOfTime.SECONDS,
-        SensorDeviceClass.DURATION, # Standard DURATION device class
+        SensorDeviceClass.DURATION,
         SensorStateClass.MEASUREMENT,
         False,
         False,
     ),
-    "cumulativeFilament": (
+    API_ATTR_CUMULATIVE_FILAMENT: (
         "Cumulative Filament",
         UnitOfLength.METERS,
         SensorDeviceClass.DISTANCE,
@@ -159,7 +178,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "cumulativePrintTime": (
+    API_ATTR_CUMULATIVE_PRINT_TIME: (
         "Cumulative Print Time",
         UnitOfTime.MINUTES,
         SensorDeviceClass.DURATION,
@@ -167,17 +186,17 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "fillAmount": (
-        "Fill Amount",
-        None,
-        None,
+    API_ATTR_FILL_AMOUNT: ( # Assuming this is the intended key from const.py
+        "Fill Amount", # Or "Chamber Humidity" if contextually appropriate
+        None, # Or PERCENTAGE if it's humidity
+        None, # Or SensorDeviceClass.HUMIDITY
         SensorStateClass.MEASUREMENT,
         False,
-        False,
+        False, # Or True, if it's a percentage that needs scaling
     ),
-    "leftFilamentType": ("Left Filament Type", None, None, None, False, False),
-    "rightFilamentType": ("Right Filament Type", None, None, None, False, False),
-    "estimatedLeftLen": (
+    API_ATTR_LEFT_FILAMENT_TYPE: ("Left Filament Type", None, None, None, False, False),
+    API_ATTR_RIGHT_FILAMENT_TYPE: ("Right Filament Type", None, None, None, False, False),
+    API_ATTR_ESTIMATED_LEFT_LEN: (
         "Estimated Left Length",
         UnitOfLength.MILLIMETERS,
         None,
@@ -185,7 +204,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "estimatedLeftWeight": (
+    API_ATTR_ESTIMATED_LEFT_WEIGHT: (
         "Estimated Left Weight",
         UnitOfMass.GRAMS,
         SensorDeviceClass.WEIGHT,
@@ -193,7 +212,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "estimatedRightLen": (
+    API_ATTR_ESTIMATED_RIGHT_LEN: (
         "Estimated Right Length",
         UnitOfLength.MILLIMETERS,
         None,
@@ -201,7 +220,7 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "estimatedRightWeight": (
+    API_ATTR_ESTIMATED_RIGHT_WEIGHT: (
         "Estimated Right Weight",
         UnitOfMass.GRAMS,
         SensorDeviceClass.WEIGHT,
@@ -209,25 +228,23 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "chamberFanSpeed": (
-        "Chamber Fan Speed",
+    API_ATTR_CHAMBER_FAN_SPEED: (
+        "Chamber Fan Speed", # Assuming RPM as per const.py comment
         REVOLUTIONS_PER_MINUTE,
         None,
         SensorStateClass.MEASUREMENT,
         False,
         False,
     ),
-    "coolingFanSpeed": (
-        "Cooling Fan Speed",
+    API_ATTR_COOLING_FAN_SPEED_RPM: ( # Key for actual RPM value
+        "Cooling Fan Speed", # Name kept generic, unit implies RPM
         REVOLUTIONS_PER_MINUTE,
         None,
         SensorStateClass.MEASUREMENT,
         False,
         False,
     ),
-    # "externalFanStatus": ("External Fan Status", None, None, None, False, False), # Replaced by binary_sensor
-    # "internalFanStatus": ("Internal Fan Status", None, None, None, False, False), # Replaced by binary_sensor
-    "tvoc": (
+    API_ATTR_TVOC: (
         "TVOC",
         "µg/m³",
         SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
@@ -235,15 +252,15 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "remainingDiskSpace": (
+    API_ATTR_REMAINING_DISK_SPACE: (
         "Remaining Disk Space",
-        UnitOfInformation.GIGABYTES,
+        UnitOfInformation.GIGABYTES, # Assuming GB, adjust if API provides different unit
         SensorDeviceClass.DATA_SIZE,
         SensorStateClass.MEASUREMENT,
         False,
         False,
     ),
-    "zAxisCompensation": (
+    API_ATTR_Z_AXIS_COMPENSATION: (
         "Z Axis Compensation",
         UnitOfLength.MILLIMETERS,
         None,
@@ -251,29 +268,27 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    # Add more as needed...
-    # "autoShutdown": ("Auto Shutdown Status", None, None, None, False, False), # Replaced by binary_sensor
-    "autoShutdownTime": (
-        "Auto Shutdown Time",
+    API_ATTR_AUTO_SHUTDOWN_TIME: (
+        "Auto Shutdown Time", # Assuming minutes as per const.py comment
         UnitOfTime.MINUTES,
         SensorDeviceClass.DURATION,
         SensorStateClass.MEASUREMENT,
         False,
         False,
     ),
-    "currentPrintSpeed": (
+    API_ATTR_CURRENT_PRINT_SPEED: ( # Assuming mm/s as per const.py comment
         "Current Print Speed",
-        "mm/s",
+        "mm/s", # Unit directly specified
         SensorDeviceClass.SPEED,
         SensorStateClass.MEASUREMENT,
         False,
         False,
     ),
-    "flashRegisterCode": ("Flash Register Code", None, None, None, False, False),
-    "location": ("Location", None, None, None, False, False),
-    "macAddr": ("MAC Address", None, None, None, False, False),
-    "measure": ("Build Volume", None, None, None, False, False),
-    "nozzleCnt": (
+    API_ATTR_FLASH_REGISTER_CODE: ("Flash Register Code", None, None, None, False, False),
+    API_ATTR_LOCATION: ("Location", None, None, None, False, False),
+    API_ATTR_MAC_ADDR: ("MAC Address", None, None, None, False, False),
+    API_ATTR_MEASURE: ("Build Volume", None, None, None, False, False), # Or other meaning of "measure"
+    API_ATTR_NOZZLE_COUNT: (
         "Nozzle Count",
         None,
         None,
@@ -281,44 +296,24 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    "nozzleModel": ("Nozzle Model", None, None, None, False, False),
-    "nozzleStyle": (
-        "Nozzle Style",
-        None,
-        None,
-        None,
-        False,
-        False,
-    ),  # Changed state_class to None
-    "pid": ("Printer ID (PID)", None, None, None, False, False),
-    "polarRegisterCode": ("Polar Register Code", None, None, None, False, False),
-    "printSpeedAdjust": (
+    API_ATTR_NOZZLE_MODEL: ("Nozzle Model", None, None, None, False, False),
+    API_ATTR_NOZZLE_STYLE: ("Nozzle Style", None, None, None, False, False),
+    API_ATTR_PID: ("Printer ID (PID)", None, None, None, False, False),
+    API_ATTR_POLAR_REGISTER_CODE: ("Polar Register Code", None, None, None, False, False),
+    API_ATTR_PRINT_SPEED_ADJUST: (
         "Print Speed Adjustment",
         PERCENTAGE,
         None,
         SensorStateClass.MEASUREMENT,
         False,
-        True,
+        True, # Needs scaling by 100
     ),
-    # Coordinator-populated custom keys (not directly from API attributes with these exact names)
-    # These keys are used in coordinator.py: current_data["printable_files"] = ...
-    # It's better to define constants for these as well if they are to be used as SENSOR_DEFINITION keys.
-    # For now, leaving them as strings, but this is an area for future improvement if these keys are shared.
-    "printable_files": ("Printable Files Count", "files", None, SensorStateClass.MEASUREMENT, True, False),
+    # Coordinator-populated custom keys
+    API_ATTR_PRINTABLE_FILES: ("Printable Files Count", "files", None, SensorStateClass.MEASUREMENT, True, False),
     API_ATTR_X_POSITION: ("X Position", UnitOfLength.MILLIMETERS, SensorDeviceClass.DISTANCE, SensorStateClass.MEASUREMENT, True, False),
     API_ATTR_Y_POSITION: ("Y Position", UnitOfLength.MILLIMETERS, SensorDeviceClass.DISTANCE, SensorStateClass.MEASUREMENT, True, False),
     API_ATTR_Z_POSITION: ("Z Position", UnitOfLength.MILLIMETERS, SensorDeviceClass.DISTANCE, SensorStateClass.MEASUREMENT, True, False),
-    # Ensure all other API_ATTR_* constants used by sensors (like temperatures) are defined in const.py
-    # and used here if they match the string keys. The current SENSOR_DEFINITIONS uses string literals
-    # for many keys like "chamberTemp", "leftTemp", etc. These should be replaced if matching constants exist.
-    # This change only replaces a few examples. A full replacement would require ensuring all corresponding
-    # API_ATTR_* constants are defined in const.py and then used here.
 }
-# TODO: Further review SENSOR_DEFINITIONS to replace all string literal keys in this
-# dictionary with their respective API_ATTR_* constants from const.py. This requires
-# ensuring that all necessary API attribute string literals are defined as constants
-# in const.py first. For example, "chamberTemp" should become API_ATTR_CHAMBER_TEMP
-# if such a constant is defined.
 
 # Type for SENSOR_DEFINITIONS value tuple
 SensorDefinitionValue = Tuple[str, Optional[str], Optional[str], Optional[SensorStateClass], bool, bool]
@@ -445,7 +440,7 @@ class FlashforgeSensor(FlashforgeEntity, SensorEntity): # Inherit from Flashforg
 
         # Example: If "printable_files" key was changed to a constant INTERNAL_KEY_PRINTABLE_FILES
         # if self._attribute_key == INTERNAL_KEY_PRINTABLE_FILES:
-        if self._attribute_key == "printable_files": # Keeping as string for now, per above TODO
+        if self._attribute_key == API_ATTR_PRINTABLE_FILES: # Use the new constant
             files_list = raw_value if isinstance(raw_value, list) else []
             self._attr_native_value = len(files_list)
             self._attr_extra_state_attributes["files"] = files_list

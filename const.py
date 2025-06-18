@@ -104,6 +104,53 @@ API_ATTR_FILAMENT_ENDSTOP_STATUS = "filament_endstop_status"
 # API Attribute Key for Bed Leveling Status (parsed from M420, stored in coordinator.data)
 API_ATTR_BED_LEVELING_STATUS = "bed_leveling_status"
 
+# API Attribute Keys for Chamber and Extruder Temperatures (from API detail or other sources)
+API_ATTR_CHAMBER_TEMP = "chamberTemp"
+API_ATTR_CHAMBER_TARGET_TEMP = "chamberTargetTemp"
+API_ATTR_LEFT_TEMP = "leftTemp"
+# API_ATTR_LEFT_TARGET_TEMP is defined below
+API_ATTR_RIGHT_TEMP = "rightTemp"
+# API_ATTR_RIGHT_TARGET_TEMP is defined below
+API_ATTR_PLAT_TEMP = "platTemp"
+# API_ATTR_PLAT_TARGET_TEMP is defined below
+
+# API Attribute Keys for Filament and Print Statistics (from API detail or other sources)
+API_ATTR_CUMULATIVE_FILAMENT = "cumulativeFilament"
+API_ATTR_CUMULATIVE_PRINT_TIME = "cumulativePrintTime"
+API_ATTR_FILL_AMOUNT = "fillAmount" # This might be chamber humidity based on some context
+API_ATTR_LEFT_FILAMENT_TYPE = "leftFilamentType"
+API_ATTR_RIGHT_FILAMENT_TYPE = "rightFilamentType"
+API_ATTR_ESTIMATED_LEFT_LEN = "estimatedLeftLen"
+API_ATTR_ESTIMATED_LEFT_WEIGHT = "estimatedLeftWeight"
+API_ATTR_ESTIMATED_RIGHT_LEN = "estimatedRightLen"
+API_ATTR_ESTIMATED_RIGHT_WEIGHT = "estimatedRightWeight"
+
+# API Attribute Keys for Fan Speeds (from API detail or other sources)
+API_ATTR_CHAMBER_FAN_SPEED = "chamberFanSpeed" # RPM or percentage? Assuming RPM for now
+API_ATTR_COOLING_FAN_SPEED_RPM = "coolingFanSpeed" # Actual RPM of the part cooling fan
+
+# API Attribute Keys for Environmental Sensors (from API detail or other sources)
+API_ATTR_TVOC = "tvoc" # Total Volatile Organic Compounds
+
+# API Attribute Keys for System Information (from API detail or other sources)
+API_ATTR_REMAINING_DISK_SPACE = "remainingDiskSpace"
+API_ATTR_Z_AXIS_COMPENSATION = "zAxisCompensation"
+API_ATTR_AUTO_SHUTDOWN_TIME = "autoShutdownTime" # In minutes or seconds?
+API_ATTR_CURRENT_PRINT_SPEED = "currentPrintSpeed" # Percentage or mm/s?
+API_ATTR_FLASH_REGISTER_CODE = "flashRegisterCode"
+API_ATTR_LOCATION = "location"
+API_ATTR_MAC_ADDR = "macAddr"
+API_ATTR_MEASURE = "measure" # Purpose unclear, might be related to some sensor reading
+API_ATTR_NOZZLE_COUNT = "nozzleCnt"
+API_ATTR_NOZZLE_MODEL = "nozzleModel"
+API_ATTR_NOZZLE_STYLE = "nozzleStyle"
+API_ATTR_PID = "pid" # Product ID or Process ID?
+API_ATTR_POLAR_REGISTER_CODE = "polarRegisterCode"
+API_ATTR_PRINT_SPEED_ADJUST = "printSpeedAdjust" # Percentage for print speed override
+
+# API Attribute Key for Coordinator-added Data (not directly from API)
+API_ATTR_PRINTABLE_FILES = "printable_files" # Key for list of printable files in coordinator data
+
 # API Attribute Keys for Coordinate data (parsed from M114, stored in coordinator.data)
 API_ATTR_X_POSITION = "x_position"
 API_ATTR_Y_POSITION = "y_position"
@@ -223,3 +270,43 @@ ATTR_GCODE = "gcode"
 # In entity.py, device_info model uses: detail.get(API_ATTR_MODEL, DEVICE_MODEL_AD5M_PRO)
 # This means it tries to get the model from API, if not found, defaults to "Adventurer 5M PRO".
 # This is a good approach.
+
+
+# Service Names
+SERVICE_PAUSE_PRINT = "pause_print"
+SERVICE_START_PRINT = "start_print"
+SERVICE_CANCEL_PRINT = "cancel_print"
+SERVICE_TOGGLE_LIGHT = "toggle_light"
+SERVICE_RESUME_PRINT = "resume_print"
+SERVICE_SET_EXTRUDER_TEMPERATURE = "set_extruder_temperature"
+SERVICE_SET_BED_TEMPERATURE = "set_bed_temperature"
+SERVICE_SET_FAN_SPEED = "set_fan_speed"
+SERVICE_TURN_FAN_OFF = "turn_fan_off"
+SERVICE_MOVE_AXIS = "move_axis"
+SERVICE_DELETE_FILE = "delete_file"
+SERVICE_DISABLE_STEPPERS = "disable_steppers"
+SERVICE_ENABLE_STEPPERS = "enable_steppers"
+SERVICE_SET_SPEED_PERCENTAGE = "set_speed_percentage"
+SERVICE_SET_FLOW_PERCENTAGE = "set_flow_percentage"
+SERVICE_HOME_AXES = "home_axes"
+SERVICE_EMERGENCY_STOP = "emergency_stop"
+SERVICE_LIST_FILES = "list_files"
+SERVICE_REPORT_FIRMWARE_CAPABILITIES = "report_firmware_capabilities"
+SERVICE_PLAY_BEEP = "play_beep"
+SERVICE_START_BED_LEVELING = "start_bed_leveling"
+SERVICE_SAVE_SETTINGS_TO_EEPROM = "save_settings_to_eeprom"
+SERVICE_READ_SETTINGS_FROM_EEPROM = "read_settings_from_eeprom"
+SERVICE_FILAMENT_CHANGE = "filament_change"
+SERVICE_RESTORE_FACTORY_SETTINGS = "restore_factory_settings"
+# SERVICE_MOVE_RELATIVE is already defined below
+# SERVICE_SEND_GCODE is already defined below
+
+# Service Attributes
+ATTR_FILE_PATH = "file_path"
+ATTR_PERCENTAGE = "percentage"
+ATTR_HOME_X = "x"
+ATTR_HOME_Y = "y"
+ATTR_HOME_Z = "z"
+ATTR_TEMPERATURE = "temperature"
+ATTR_SPEED = "speed"
+# ATTR_GCODE is already defined below
