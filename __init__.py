@@ -13,11 +13,13 @@ import voluptuous as vol
 from .const import (
     DOMAIN,
     DEFAULT_SCAN_INTERVAL,
-    CONF_PRINTING_SCAN_INTERVAL, # Added
-    DEFAULT_PRINTING_SCAN_INTERVAL # Added
+    CONF_PRINTING_SCAN_INTERVAL,
+    DEFAULT_PRINTING_SCAN_INTERVAL,
+    ATTR_GCODE, # For the new service
+    SERVICE_SEND_GCODE, # For the new service
 )
 from .coordinator import FlashforgeDataUpdateCoordinator
-from homeassistant.core import ServiceCall # For type hinting
+from homeassistant.core import ServiceCall
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,8 +59,17 @@ SERVICE_RESTORE_FACTORY_SETTINGS: str = "restore_factory_settings"
 SERVICE_MOVE_RELATIVE: str = "move_relative"
 
 
+from homeassistant.const import Platform
+
 # Platforms
-PLATFORMS: List[str] = ["sensor", "camera", "binary_sensor"]
+PLATFORMS: List[Platform] = [
+    Platform.SENSOR,
+    Platform.CAMERA,
+    Platform.BINARY_SENSOR,
+    Platform.SELECT,
+    Platform.NUMBER,
+    Platform.BUTTON,
+]
 
 
 async def async_setup(hass: HomeAssistant, config: Dict[str, Any]) -> bool:
@@ -315,6 +326,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info(f"Service '{SERVICE_MOVE_RELATIVE}' called with offsets: x={x}, y={y}, z={z}, feedrate={feedrate}")
         await coordinator.move_relative(x=x, y=y, z=z, feedrate=feedrate)
 
+    async def async_send_gcode_service(call: ServiceCall) -> None:
+        """Handle the service call to send a G-code command."""
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+        gcode_command = call.data.get(ATTR_GCODE)
+        if gcode_command is not None and isinstance(gcode_command, str):
+            await coordinator.send_gcode_command(gcode_command)
+        else:
+            _LOGGER.error(f"Service '{SERVICE_SEND_GCODE}' called without a valid G-code command string.")
+
     # Register all services
     hass.services.async_register(DOMAIN, SERVICE_PAUSE_PRINT, handle_pause_print)
     hass.services.async_register(
@@ -422,6 +442,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, SERVICE_START_BED_LEVELING, handle_start_bed_leveling)
     hass.services.async_register(DOMAIN, SERVICE_READ_SETTINGS_FROM_EEPROM, handle_read_settings_from_eeprom)
     hass.services.async_register(DOMAIN, SERVICE_MOVE_RELATIVE, handle_move_relative, schema=SERVICE_MOVE_RELATIVE_SCHEMA)
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SEND_GCODE,
+        async_send_gcode_service,
+        schema=vol.Schema({vol.Required(ATTR_GCODE): cv.string})
+    )
 
     return True
 
@@ -460,6 +486,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 SERVICE_START_BED_LEVELING,
                 SERVICE_READ_SETTINGS_FROM_EEPROM,
                 SERVICE_MOVE_RELATIVE,
+                SERVICE_SEND_GCODE, # Added new service to unregister
             ]
             for service_name in all_service_names:
                 if service_name:

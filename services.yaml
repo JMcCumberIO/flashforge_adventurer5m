@@ -322,3 +322,21 @@ move_relative:
           min: 100 # Consistent with move_axis
           max: 6000 # Consistent with move_axis
           unit_of_measurement: "mm/min"
+
+send_gcode:
+  name: Send G-code Command
+  description: >-
+    Sends a raw G-code or M-code command directly to the printer.
+    Warning: Incorrect commands can cause unexpected printer behavior.
+    Ensure the command is formatted exactly as the printer expects it
+    (e.g., including any required prefixes like '~' and suffixes like '\\r\\n').
+  fields:
+    gcode:
+      name: G-code Command
+      description: >-
+        The full G-code/M-code string to send to the printer.
+        Example for Flashforge: "~M115\\r\\n" to get firmware info.
+      required: true
+      selector:
+        text:
+          multiline: true

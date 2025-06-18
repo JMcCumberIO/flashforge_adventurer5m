@@ -922,3 +922,21 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         """Restores factory settings using M502."""
         # M502 might also have non-standard response or cause a restart.
         return await self._send_tcp_command(TCP_CMD_RESTORE_FACTORY_SETTINGS, "RESTORE FACTORY SETTINGS (M502)", response_terminator=TCP_RESPONSE_TERMINATOR_OK)
+
+    async def send_gcode_command(self, command: str) -> bool:
+        """Sends a generic G-code/M-code command to the printer.
+
+        Args:
+            command: The raw G-code/M-code string to send.
+                     It is expected to include any necessary prefixes (like '~')
+                     and suffixes (like '\\r\\n').
+
+        Returns:
+            True if the command was sent successfully and acknowledged, False otherwise.
+        """
+        # It's assumed the user provides the exact command string the printer expects.
+        # For Flashforge, this often means prefixed with '~' and suffixed with '\r\n'.
+        # Example: "~M115\r\n"
+        _LOGGER.info(f"Attempting to send generic G-code command: {command.strip()}")
+        # The action description is generic here. More specific logging might occur in FlashforgeTCPClient.
+        return await self._send_tcp_command(command, "SEND GENERIC GCODE")

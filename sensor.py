@@ -28,11 +28,13 @@ from .const import (
     API_ATTR_PRINT_PROGRESS,
     API_ATTR_PRINT_DURATION,
     API_ATTR_ESTIMATED_TIME,
-    # Add other API_ATTR_* that are used as keys in SENSOR_DEFINITIONS
-    API_KEY_CODE, # "code"
-    API_KEY_MESSAGE, # "message"
+    API_KEY_CODE,
+    API_KEY_MESSAGE,
+    API_ATTR_X_POSITION, # For X coordinate sensor
+    API_ATTR_Y_POSITION, # For Y coordinate sensor
+    API_ATTR_Z_POSITION, # For Z coordinate sensor
+    # TODO: Define and import other API_ATTR_* constants for remaining string keys in SENSOR_DEFINITIONS
     # For keys in "detail" object that are not covered by specific API_ATTR_*
-    # These might need new constants if they are not already defined, e.g. API_ATTR_CHAMBER_TEMP = "chamberTemp"
     # For now, I'll list some that are directly used as string keys:
     # "chamberTemp", "chamberTargetTemp", "leftTemp", "leftTargetTemp", "rightTemp", "rightTargetTemp",
     # "platTemp", "platTargetTemp", "cumulativeFilament", "cumulativePrintTime", "fillAmount",
@@ -43,7 +45,7 @@ from .const import (
     # "nozzleStyle", "pid", "polarRegisterCode", "printSpeedAdjust"
     # And top-level custom keys used in coordinator.data
     # "printable_files", "x_position", "y_position", "z_position"
-    # For this refactor, I will focus on replacing those that have direct API_ATTR_* equivalents.
+    # Note: x_position, y_position, z_position are now covered by API_ATTR_*
 )
 from .coordinator import FlashforgeDataUpdateCoordinator
 
@@ -303,9 +305,9 @@ SENSOR_DEFINITIONS = {
     # It's better to define constants for these as well if they are to be used as SENSOR_DEFINITION keys.
     # For now, leaving them as strings, but this is an area for future improvement if these keys are shared.
     "printable_files": ("Printable Files Count", "files", None, SensorStateClass.MEASUREMENT, True, False),
-    "x_position": ("X Position", UnitOfLength.MILLIMETERS, None, SensorStateClass.MEASUREMENT, True, False),
-    "y_position": ("Y Position", UnitOfLength.MILLIMETERS, None, SensorStateClass.MEASUREMENT, True, False),
-    "z_position": ("Z Position", UnitOfLength.MILLIMETERS, None, SensorStateClass.MEASUREMENT, True, False),
+    API_ATTR_X_POSITION: ("X Position", UnitOfLength.MILLIMETERS, SensorDeviceClass.DISTANCE, SensorStateClass.MEASUREMENT, True, False),
+    API_ATTR_Y_POSITION: ("Y Position", UnitOfLength.MILLIMETERS, SensorDeviceClass.DISTANCE, SensorStateClass.MEASUREMENT, True, False),
+    API_ATTR_Z_POSITION: ("Z Position", UnitOfLength.MILLIMETERS, SensorDeviceClass.DISTANCE, SensorStateClass.MEASUREMENT, True, False),
     # Ensure all other API_ATTR_* constants used by sensors (like temperatures) are defined in const.py
     # and used here if they match the string keys. The current SENSOR_DEFINITIONS uses string literals
     # for many keys like "chamberTemp", "leftTemp", etc. These should be replaced if matching constants exist.

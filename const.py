@@ -55,8 +55,10 @@ REQUIRED_DETAIL_FIELDS = [
 ] # These are exact keys from the API `detail` object.
 
 # Printer States (values for API_ATTR_STATUS)
-PRINTING_STATES = ["BUILDING", "PRINTING", "RUNNING"]
-ERROR_STATES = ["ERROR", "FAILED", "FATAL"]
+PRINTING_STATES = ["BUILDING", "PRINTING", "RUNNING"] # States indicating active printing
+PAUSED_STATE = "PAUSED" # State indicating paused print
+IDLE_STATES = ["IDLE", "READY"] # States indicating printer is idle or ready, not actively printing/paused
+ERROR_STATES = ["ERROR", "FAILED", "FATAL"] # States indicating an error condition
 
 # Common states from API string values (often for binary sensors)
 DOOR_OPEN = "OPEN"
@@ -101,6 +103,17 @@ API_ATTR_FILAMENT_ENDSTOP_STATUS = "filament_endstop_status"
 
 # API Attribute Key for Bed Leveling Status (parsed from M420, stored in coordinator.data)
 API_ATTR_BED_LEVELING_STATUS = "bed_leveling_status"
+
+# API Attribute Keys for Coordinate data (parsed from M114, stored in coordinator.data)
+API_ATTR_X_POSITION = "x_position"
+API_ATTR_Y_POSITION = "y_position"
+API_ATTR_Z_POSITION = "z_position"
+
+# API Attribute Keys for Target Temperatures (from API detail object)
+API_ATTR_LEFT_TARGET_TEMP = "leftTargetTemp"
+API_ATTR_RIGHT_TARGET_TEMP = "rightTargetTemp" # If dual extruder support is added
+API_ATTR_PLAT_TARGET_TEMP = "platTargetTemp"
+# API_ATTR_COOLING_FAN_SPEED = "coolingFanSpeed" # This is actual RPM, not setpoint 0-255
 
 # MJPEG Camera Settings
 MJPEG_DEFAULT_PORT = 8080
@@ -198,7 +211,11 @@ CAMERA_UI_NAME = f"{MANUFACTURER} {DEVICE_MODEL_AD5M_PRO} Camera"
 # but it IS used in coordinator.py for a method name, and in services.yaml.
 # This is a slight inconsistency. If it's a service, it should be in __init__.py's registration.
 # For now, I will assume it's a valid service and keep the constant.
-SERVICE_MOVE_RELATIVE = "move_relative" # Example, ensure it's registered in __init__.py if a service.
+SERVICE_MOVE_RELATIVE = "move_relative" # Is registered in __init__.py
+
+# Generic G-code Service
+SERVICE_SEND_GCODE = "send_gcode"
+ATTR_GCODE = "gcode"
 
 # Note: API_ATTR_MODEL is "model", DEVICE_MODEL_AD5M_PRO is "Adventurer 5M PRO"
 # The first is the API key, the second is a specific string value.
