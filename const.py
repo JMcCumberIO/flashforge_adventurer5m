@@ -1,4 +1,5 @@
 """Constants for the Flashforge Adventurer 5M PRO integration."""
+from typing import Dict # Add Dict import
 
 # Integration domain
 DOMAIN = "flashforge_adventurer5m"
@@ -250,15 +251,8 @@ CAMERA_UI_NAME = f"{MANUFACTURER} {DEVICE_MODEL_AD5M_PRO} Camera"
 # No need to duplicate all service string names here unless used across multiple modules
 # from const.py directly.
 
-# Cleanup: Removed ENDPOINT_PAUSE, ENDPOINT_START, ENDPOINT_CANCEL as they are commented out.
-# Cleanup: SERVICE_MOVE_RELATIVE seems to be defined in __init__.py and services.yaml,
-# it's okay here if some other module needs it but ideally __init__ is the source of truth for service names.
-# For now, leaving SERVICE_MOVE_RELATIVE if it was intentionally there for other uses.
-# Actually, SERVICE_MOVE_RELATIVE is not in the service registration list in __init__.py,
-# but it IS used in coordinator.py for a method name, and in services.yaml.
-# This is a slight inconsistency. If it's a service, it should be in __init__.py's registration.
-# For now, I will assume it's a valid service and keep the constant.
-SERVICE_MOVE_RELATIVE = "move_relative" # Is registered in __init__.py
+# Service to move printer axes by a relative amount.
+SERVICE_MOVE_RELATIVE = "move_relative"
 
 # Generic G-code Service
 SERVICE_SEND_GCODE = "send_gcode"
@@ -310,3 +304,9 @@ ATTR_HOME_Z = "z"
 ATTR_TEMPERATURE = "temperature"
 ATTR_SPEED = "speed"
 # ATTR_GCODE is already defined below
+
+
+# Mapping of error codes to human-readable descriptions
+# This dictionary should be populated with known error codes and their meanings.
+# Example: ERROR_CODE_DESCRIPTIONS = {"1": "Nozzle temperature error", "2": "Bed temperature error"}
+ERROR_CODE_DESCRIPTIONS: Dict[str, str] = {}

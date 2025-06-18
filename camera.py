@@ -1,6 +1,6 @@
 """Camera platform for Flashforge Adventurer 5M PRO integration."""
 import logging
-from typing import Callable, Optional, List # Added Optional, List
+from typing import Callable, Optional, List, Dict, Any # Added Optional, List, Dict, Any
 
 from homeassistant import config_entries, core
 from homeassistant.components.mjpeg.camera import MjpegCamera
@@ -75,25 +75,13 @@ class FlashforgeAdventurer5MCamera(FlashforgeEntity, MjpegCamera): # Inherit fro
         mjpeg_camera_name: str = CAMERA_UI_NAME
 
         # Determine initial stream URL
-        initial_mjpeg_url: Optional[str] = None
-        camera_stream_url_from_api: Optional[str] = detail.get(API_ATTR_CAMERA_STREAM_URL)
-        ip_addr_from_api: Optional[str] = detail.get(API_ATTR_IP_ADDR)
+        initial_mjpeg_url = self._get_mjpeg_url(detail)
 
-        if camera_stream_url_from_api:
-            initial_mjpeg_url = camera_stream_url_from_api
-            _LOGGER.debug(f"Using 'cameraStreamUrl' from API: {initial_mjpeg_url}")
-        elif ip_addr_from_api:
-            initial_mjpeg_url = (
-                f"http://{ip_addr_from_api}:{MJPEG_DEFAULT_PORT}{MJPEG_STREAM_PATH}"
-            )
-            _LOGGER.debug(
-                f"'cameraStreamUrl' missing, using fallback URL constructed from ipAddr: {initial_mjpeg_url}"
-            )
-        else:
+        if not initial_mjpeg_url:
             _LOGGER.warning(
                 f"Coordinator does not have '{API_ATTR_CAMERA_STREAM_URL}' or '{API_ATTR_IP_ADDR}' in detail data. Camera will be unavailable initially."
             )
-            # MjpegCamera will be initialized with mjpeg_url=None
+        # MjpegCamera.__init__ will use initial_mjpeg_url (which could be None)
 
         MjpegCamera.__init__(
             self,
@@ -108,6 +96,25 @@ class FlashforgeAdventurer5MCamera(FlashforgeEntity, MjpegCamera): # Inherit fro
         # MjpegCamera's base Camera class will use the device_info property.
         # No need to set self._attr_device_info here.
 
+    def _get_mjpeg_url(self, detail: Optional[Dict[str, Any]]) -> Optional[str]:
+        if not detail: # Handle case where detail itself might be None
+            return None
+
+        camera_stream_url_from_api: Optional[str] = detail.get(API_ATTR_CAMERA_STREAM_URL)
+        ip_addr_from_api: Optional[str] = detail.get(API_ATTR_IP_ADDR)
+
+        if camera_stream_url_from_api:
+            _LOGGER.debug(f"Using 'cameraStreamUrl' from API: {camera_stream_url_from_api}")
+            return camera_stream_url_from_api
+        elif ip_addr_from_api:
+            fallback_url = f"http://{ip_addr_from_api}:{MJPEG_DEFAULT_PORT}{MJPEG_STREAM_PATH}"
+            _LOGGER.debug(
+                f"'cameraStreamUrl' missing, using fallback URL constructed from ipAddr: {fallback_url}"
+            )
+            return fallback_url
+        else:
+            return None
+
     @property
     def stream_source(self) -> str | None:
         """Return the camera stream URL for Home Assistant."""
@@ -118,24 +125,15 @@ class FlashforgeAdventurer5MCamera(FlashforgeEntity, MjpegCamera): # Inherit fro
         detail = (
             self.coordinator.data.get("detail", {}) if self.coordinator.data else {}
         )
-        camera_stream_url_from_api = detail.get(API_ATTR_CAMERA_STREAM_URL)
-        ip_addr_from_api = detail.get(API_ATTR_IP_ADDR)
+        mjpeg_url = self._get_mjpeg_url(detail)
 
-        if camera_stream_url_from_api:
-            return camera_stream_url_from_api
-        elif ip_addr_from_api:
-            fallback_url = (
-                f"http://{ip_addr_from_api}:{MJPEG_DEFAULT_PORT}{MJPEG_STREAM_PATH}"
-            )
-            _LOGGER.debug(
-                f"No '{API_ATTR_CAMERA_STREAM_URL}' in API, using fallback URL: {fallback_url}"
-            )
-            return fallback_url
+        if mjpeg_url:
+            return mjpeg_url
         else:
             _LOGGER.debug(
                 f"No '{API_ATTR_CAMERA_STREAM_URL}' or '{API_ATTR_IP_ADDR}' in API data for stream_source. Returning dummy URL."
             )
-            return MJPEG_DUMMY_URL  # Indicates no valid current source
+            return MJPEG_DUMMY_URL
 
     @property
     def available(self) -> bool:

@@ -114,22 +114,6 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    API_ATTR_RIGHT_TEMP: (
-        "Right Nozzle Temperature",
-        UnitOfTemperature.CELSIUS,
-        SensorDeviceClass.TEMPERATURE,
-        SensorStateClass.MEASUREMENT,
-        False,
-        False,
-    ),
-    API_ATTR_RIGHT_TARGET_TEMP: (
-        "Right Nozzle Target Temperature",
-        UnitOfTemperature.CELSIUS,
-        SensorDeviceClass.TEMPERATURE,
-        SensorStateClass.MEASUREMENT,
-        False,
-        False,
-    ),
     API_ATTR_PLAT_TEMP: (
         "Platform Temperature",
         UnitOfTemperature.CELSIUS,
@@ -186,16 +170,15 @@ SENSOR_DEFINITIONS = {
         False,
         False,
     ),
-    API_ATTR_FILL_AMOUNT: ( # Assuming this is the intended key from const.py
-        "Fill Amount", # Or "Chamber Humidity" if contextually appropriate
-        None, # Or PERCENTAGE if it's humidity
-        None, # Or SensorDeviceClass.HUMIDITY
+    API_ATTR_FILL_AMOUNT: (
+        "Fill Amount (Raw)",
+        None,
+        None,
         SensorStateClass.MEASUREMENT,
         False,
-        False, # Or True, if it's a percentage that needs scaling
+        False,
     ),
     API_ATTR_LEFT_FILAMENT_TYPE: ("Left Filament Type", None, None, None, False, False),
-    API_ATTR_RIGHT_FILAMENT_TYPE: ("Right Filament Type", None, None, None, False, False),
     API_ATTR_ESTIMATED_LEFT_LEN: (
         "Estimated Left Length",
         UnitOfLength.MILLIMETERS,
@@ -206,22 +189,6 @@ SENSOR_DEFINITIONS = {
     ),
     API_ATTR_ESTIMATED_LEFT_WEIGHT: (
         "Estimated Left Weight",
-        UnitOfMass.GRAMS,
-        SensorDeviceClass.WEIGHT,
-        SensorStateClass.MEASUREMENT,
-        False,
-        False,
-    ),
-    API_ATTR_ESTIMATED_RIGHT_LEN: (
-        "Estimated Right Length",
-        UnitOfLength.MILLIMETERS,
-        None,
-        SensorStateClass.MEASUREMENT,
-        False,
-        False,
-    ),
-    API_ATTR_ESTIMATED_RIGHT_WEIGHT: (
-        "Estimated Right Weight",
         UnitOfMass.GRAMS,
         SensorDeviceClass.WEIGHT,
         SensorStateClass.MEASUREMENT,
@@ -287,7 +254,6 @@ SENSOR_DEFINITIONS = {
     API_ATTR_FLASH_REGISTER_CODE: ("Flash Register Code", None, None, None, False, False),
     API_ATTR_LOCATION: ("Location", None, None, None, False, False),
     API_ATTR_MAC_ADDR: ("MAC Address", None, None, None, False, False),
-    API_ATTR_MEASURE: ("Build Volume", None, None, None, False, False), # Or other meaning of "measure"
     API_ATTR_NOZZLE_COUNT: (
         "Nozzle Count",
         None,

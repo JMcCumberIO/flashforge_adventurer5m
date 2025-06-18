@@ -43,6 +43,7 @@ from .const import (
     FAN_STATUS_ON_STATE,
     API_ATTR_STATUS,
     API_ATTR_ERROR_CODE,
+    ERROR_CODE_DESCRIPTIONS, # Add this
     API_ATTR_DOOR_STATUS,
     API_ATTR_LIGHT_STATUS,
     API_ATTR_AUTO_SHUTDOWN,
@@ -176,6 +177,7 @@ async def async_setup_entry(
             entity_category=None,
             detail_attribute=API_ATTR_X_ENDSTOP_STATUS,
             value_on=True, # Sensor is "on" (problem/triggered) if M119 reports triggered (True)
+            attribute_is_top_level=True,
         ),
         FlashforgeBinarySensor(
             coordinator=coordinator,
@@ -185,6 +187,7 @@ async def async_setup_entry(
             entity_category=None,
             detail_attribute=API_ATTR_Y_ENDSTOP_STATUS,
             value_on=True,
+            attribute_is_top_level=True,
         ),
         FlashforgeBinarySensor(
             coordinator=coordinator,
@@ -194,6 +197,7 @@ async def async_setup_entry(
             entity_category=None,
             detail_attribute=API_ATTR_Z_ENDSTOP_STATUS,
             value_on=True,
+            attribute_is_top_level=True,
         ),
         FlashforgeBinarySensor(
             coordinator=coordinator,
@@ -203,6 +207,7 @@ async def async_setup_entry(
             entity_category=None,
             detail_attribute=API_ATTR_FILAMENT_ENDSTOP_STATUS,
             value_on=True, # Assuming 'triggered' means problem (filament out)
+            attribute_is_top_level=True,
         ),
         # Bed Leveling Status Sensor
         FlashforgeBinarySensor(
@@ -212,7 +217,8 @@ async def async_setup_entry(
             device_class=None,
             entity_category=None,
             detail_attribute=API_ATTR_BED_LEVELING_STATUS,
-            value_on=True
+            value_on=True,
+            attribute_is_top_level=True,
         ),
     ]
 
@@ -239,6 +245,7 @@ class FlashforgeBinarySensor(FlashforgeEntity, BinarySensorEntity): # Inherit fr
         is_printing_sensor: bool = False,
         connection_status_sensor: bool = False,
         error_sensor: bool = False,
+        attribute_is_top_level: bool = False,
     ) -> None:
         """Initialize a binary sensor for Flashforge.
 
@@ -253,6 +260,7 @@ class FlashforgeBinarySensor(FlashforgeEntity, BinarySensorEntity): # Inherit fr
             is_printing_sensor: Whether this is the printing status sensor.
             connection_status_sensor: Whether this is the connection status sensor.
             error_sensor: Whether this is the error state sensor.
+            attribute_is_top_level: Whether the detail_attribute is at the root of coordinator.data.
         """
         # Prepare unique_id_key for the base class
         unique_id_key = name.lower().replace(" ", "_")
@@ -269,6 +277,7 @@ class FlashforgeBinarySensor(FlashforgeEntity, BinarySensorEntity): # Inherit fr
         self._is_printing_sensor: bool = is_printing_sensor
         self._connection_status_sensor: bool = connection_status_sensor
         self._error_sensor: bool = error_sensor
+        self._attribute_is_top_level: bool = attribute_is_top_level
 
         # unique_id is set by the base class.
 
@@ -336,21 +345,10 @@ class FlashforgeBinarySensor(FlashforgeEntity, BinarySensorEntity): # Inherit fr
 
         # For attribute-based sensors
         if self._detail_attribute:
-            # Check if the attribute is expected at the root of coordinator.data
-            # This applies to our new endstop sensors.
-            # A more robust way would be to pass a flag like `is_top_level_attribute`
-            # to the constructor, or make the sensor "smarter".
-            # For now, we assume endstop and bed leveling attributes are top-level in coordinator.data
-            # and others are in 'detail'.
-            if self._detail_attribute in [
-                API_ATTR_X_ENDSTOP_STATUS,
-                API_ATTR_Y_ENDSTOP_STATUS,
-                API_ATTR_Z_ENDSTOP_STATUS,
-                API_ATTR_FILAMENT_ENDSTOP_STATUS,
-                API_ATTR_BED_LEVELING_STATUS, # Added Bed Leveling status here
-            ]:
+            if self._attribute_is_top_level:
                 return self.coordinator.data.get(self._detail_attribute) == self._value_on
-            else: # Existing logic for attributes within "detail"
+            else:
+                # detail = self.coordinator.data.get("detail", {}) # Already done at the start of is_on
                 return detail.get(self._detail_attribute) == self._value_on
 
         # Default
@@ -390,7 +388,19 @@ class FlashforgeBinarySensor(FlashforgeEntity, BinarySensorEntity): # Inherit fr
 
         # Add error details for error sensor
         if self._error_sensor and self.is_on:
-            attributes["error_code"] = detail.get(API_ATTR_ERROR_CODE)
+            error_code_value = detail.get(API_ATTR_ERROR_CODE)
+            attributes["error_code"] = error_code_value # Always add the code, even if it's NONE
+
+            if error_code_value and error_code_value != ERROR_CODE_NONE:
+                attributes["error_description"] = ERROR_CODE_DESCRIPTIONS.get(
+                    error_code_value,
+                    "Unknown error code. Check printer display or documentation."
+                )
+            elif self.is_on: # is_on is true, but error_code_value is NONE or "0"
+                           # This implies error state is due to API_ATTR_STATUS in ERROR_STATES
+                status_value = detail.get(API_ATTR_STATUS)
+                attributes["error_description"] = f"Error state active (Status: {status_value}). No specific error code provided by API."
+            # If not self.is_on, this block isn't entered anyway.
 
         # Add print job details for printing sensor
         if self._is_printing_sensor and self.is_on:
