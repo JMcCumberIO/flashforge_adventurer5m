@@ -184,5 +184,3 @@ class FlashforgeFanSpeedNumber(FlashforgeEntity, NumberEntity):
         self.async_write_ha_state()
         # Request a refresh, though it won't update this entity's value from coordinator
         await self.coordinator.async_request_refresh()
-
-```

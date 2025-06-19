@@ -113,5 +113,3 @@ class FlashforgePrintFileSelect(FlashforgeEntity, SelectEntity):
         # Request a refresh from the coordinator to get the latest status quickly
         # This helps reflect the "printing" state sooner if the call was successful
         await self.coordinator.async_request_refresh()
-
-```

@@ -435,7 +435,3 @@ class FlashforgeBinarySensor(FlashforgeEntity, BinarySensorEntity): # Inherit fr
                         attributes[snake_attr] = detail[attr_key]
 
         return attributes if attributes else None
-
-    @property
-    # device_info property is now inherited from FlashforgeEntity
-    # async_added_to_hass is now inherited from FlashforgeEntity
