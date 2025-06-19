@@ -46,6 +46,7 @@ API_KEY_MESSAGE = "message" # Response message
 API_VALUE_SUCCESS_CODE = 0 # Expected value of "code" field for successful operations
 
 # Key attributes for API response validation
+API_ATTR_DETAIL = "detail"  # Key for the nested detail object in API response
 REQUIRED_RESPONSE_FIELDS = [API_KEY_CODE, API_KEY_MESSAGE, API_ATTR_DETAIL] # Updated to use constants
 REQUIRED_DETAIL_FIELDS = [
     "status", # API_ATTR_STATUS
@@ -94,7 +95,6 @@ API_ATTR_FIRMWARE_VERSION = "firmwareVersion"
 API_ATTR_IP_ADDR = "ipAddr"
 API_ATTR_CAMERA_STREAM_URL = "cameraStreamUrl"
 API_ATTR_MODEL = "model" # Printer model as reported by API
-API_ATTR_DETAIL = "detail"  # Key for the nested detail object in API response
 
 # API Attribute Keys for Endstop Status (parsed from M119, stored in coordinator.data)
 API_ATTR_X_ENDSTOP_STATUS = "x_endstop_status"
@@ -104,6 +104,24 @@ API_ATTR_FILAMENT_ENDSTOP_STATUS = "filament_endstop_status"
 
 # API Attribute Key for Bed Leveling Status (parsed from M420, stored in coordinator.data)
 API_ATTR_BED_LEVELING_STATUS = "bed_leveling_status"
+
+# Names for Endstop Binary Sensors
+NAME_X_ENDSTOP = "X Endstop"
+NAME_Y_ENDSTOP = "Y Endstop"
+NAME_Z_ENDSTOP = "Z Endstop"
+NAME_FILAMENT_ENDSTOP = "Filament Endstop"
+
+# Icons for Endstop Binary Sensors
+ICON_X_ENDSTOP = "mdi:axis-x-arrow"
+ICON_Y_ENDSTOP = "mdi:axis-y-arrow"
+ICON_Z_ENDSTOP = "mdi:axis-z-arrow"
+ICON_FILAMENT_ENDSTOP = "mdi:printer-3d-nozzle-alert"
+
+# Name for Bed Leveling Binary Sensor
+NAME_BED_LEVELING = "Bed Leveling Active"
+
+# Icon for Bed Leveling Binary Sensor
+ICON_BED_LEVELING = "mdi:format-list-numbered"
 
 # API Attribute Keys for Chamber and Extruder Temperatures (from API detail or other sources)
 API_ATTR_CHAMBER_TEMP = "chamberTemp"
@@ -213,7 +231,7 @@ TCP_CMD_M661_PATH_PREFIX = "/data/" # File paths from M661 start with this
 
 # M661 File List Parsing
 M661_SEPARATOR = "::\x00\x00\x00"
-M661_CMD_PREFIX = "CMD M661 Received.\r\ok\r\n" # Note: original had a typo here, fixed ok
+M661_CMD_PREFIX = "CMD M661 Received.\rok\r\n" # Note: original had a typo here, fixed ok
 M661_FILE_EXT_GCODE = ".gcode"
 M661_FILE_EXT_GX = ".gx"
 
