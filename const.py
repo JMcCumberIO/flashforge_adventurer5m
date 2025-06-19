@@ -46,6 +46,7 @@ API_KEY_MESSAGE = "message" # Response message
 API_VALUE_SUCCESS_CODE = 0 # Expected value of "code" field for successful operations
 
 # Key attributes for API response validation
+API_ATTR_DETAIL = "detail"  # Key for the nested detail object in API response
 REQUIRED_RESPONSE_FIELDS = [API_KEY_CODE, API_KEY_MESSAGE, API_ATTR_DETAIL] # Updated to use constants
 REQUIRED_DETAIL_FIELDS = [
     "status", # API_ATTR_STATUS
@@ -94,7 +95,6 @@ API_ATTR_FIRMWARE_VERSION = "firmwareVersion"
 API_ATTR_IP_ADDR = "ipAddr"
 API_ATTR_CAMERA_STREAM_URL = "cameraStreamUrl"
 API_ATTR_MODEL = "model" # Printer model as reported by API
-API_ATTR_DETAIL = "detail"  # Key for the nested detail object in API response
 
 # API Attribute Keys for Endstop Status (parsed from M119, stored in coordinator.data)
 API_ATTR_X_ENDSTOP_STATUS = "x_endstop_status"
@@ -213,7 +213,7 @@ TCP_CMD_M661_PATH_PREFIX = "/data/" # File paths from M661 start with this
 
 # M661 File List Parsing
 M661_SEPARATOR = "::\x00\x00\x00"
-M661_CMD_PREFIX = "CMD M661 Received.\r\ok\r\n" # Note: original had a typo here, fixed ok
+M661_CMD_PREFIX = "CMD M661 Received.\rok\r\n" # Note: original had a typo here, fixed ok
 M661_FILE_EXT_GCODE = ".gcode"
 M661_FILE_EXT_GX = ".gx"
 
