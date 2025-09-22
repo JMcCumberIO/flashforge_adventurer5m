@@ -45,6 +45,7 @@ This project integrates the **FlashForge Adventurer 5M** 3D printer in LAN mode 
 
 - **Home Assistant** 2023.10 or later
 - **FlashForge Adventurer 5M Pro 3D Printer**
+    - Testing has been completed in "LAN-Only" mode. 
 - **Network Connection** to the printer
 - Ensure Home Assistant can reach the printer on TCP port 8898 (for status/sensor data) and TCP port 8899 (for control commands). The camera stream uses port 8080 or a URL provided by the printer.
 
