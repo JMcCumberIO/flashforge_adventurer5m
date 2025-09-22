@@ -68,7 +68,7 @@ This project integrates the **FlashForge Adventurer 5M** 3D printer in LAN mode 
       - Enter the required details:
         - **Host**: IP address or hostname of your printer (e.g., 192.168.1.50).
         - **Serial Number**: Serial number of your printer (often includes an 'SN' prefix, which should be included if displayed by your printer).
-        - **Check Code**: Authentication code for your printer.
+        - **Check Code**: Authentication code for your printer. "check_code" is in Settings (Gear Icon) > Network (Second Tab) > Network mode as "Printer ID"
 
 3. **Restart Home Assistant**
 
