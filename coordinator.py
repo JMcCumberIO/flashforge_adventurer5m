@@ -76,7 +76,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _send_tcp_command(
         self, command: str, action: str, response_terminator: str = "ok\r\n"
-    ) -> bool:
+    ) -> tuple[bool, str]:
         """Helper method to send a TCP command and handle common logic."""
         tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
         _LOGGER.info(f"Attempting to {action} using TCP command: {command.strip()}")
@@ -88,15 +88,15 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.info(
                     f"Successfully sent {action} command. Response: {response.strip() if response else 'N/A'}"
                 )
-                return True
+                return True, response
             else:
                 _LOGGER.error(
                     f"Failed to send {action} command. Response/Error: {response.strip() if response else 'N/A'}"
                 )
-                return False
+                return False, response
         except Exception as e:
             _LOGGER.error(f"Exception during {action} TCP command: {e}", exc_info=True)
-            return False
+            return False, str(e)
 
     async def _fetch_bed_leveling_status(self) -> dict:
         """Fetches and parses bed leveling status from M420 command."""
@@ -569,11 +569,13 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def pause_print(self):
         """Pauses the current print using TCP M-code ~M25."""
-        return await self._send_tcp_command("~M25\r\n", "PAUSE PRINT")
+        success, _ = await self._send_tcp_command("~M25\r\n", "PAUSE PRINT")
+        return success
 
     async def resume_print(self):
         """Resumes the current print using TCP M-code ~M24."""
-        return await self._send_tcp_command("~M24\r\n", "RESUME PRINT")
+        success, _ = await self._send_tcp_command("~M24\r\n", "RESUME PRINT")
+        return success
 
     async def start_print(self, file_path: str):
         """Starts a new print using TCP M-code ~M23."""
@@ -587,11 +589,13 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             command = f"~M23 {TCP_CMD_PRINT_FILE_PREFIX_USER}{file_path}\r\n"
 
         action = f"START PRINT ({file_path})"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def cancel_print(self):
         """Cancels the current print using TCP M-code ~M26."""
-        return await self._send_tcp_command("~M26\r\n", "CANCEL PRINT")
+        success, _ = await self._send_tcp_command("~M26\r\n", "CANCEL PRINT")
+        return success
 
     async def toggle_light(self, on: bool):
         """Toggles the printer light ON or OFF using TCP M-code commands."""
@@ -601,7 +605,8 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         else:
             command = "~M146 r0 g0 b0 F0\r\n"
             action_desc = "TURN LIGHT OFF"
-        return await self._send_tcp_command(command, action_desc)
+        success, _ = await self._send_tcp_command(command, action_desc)
+        return success
 
     async def set_extruder_temperature(self, temperature: int):
         """Sets the extruder temperature using TCP M-code ~M104."""
@@ -612,7 +617,8 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             return False
         command = f"~M104 S{temperature}\r\n"
         action = f"SET EXTRUDER TEMPERATURE to {temperature}°C"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def set_bed_temperature(self, temperature: int):
         """Sets the bed temperature using TCP M-code ~M140."""
@@ -623,7 +629,8 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             return False
         command = f"~M140 S{temperature}\r\n"
         action = f"SET BED TEMPERATURE to {temperature}°C"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def set_fan_speed(self, speed: int):
         """Sets the fan speed using TCP M-code ~M106."""
@@ -632,11 +639,13 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             return False
         command = f"~M106 S{speed}\r\n"
         action = f"SET FAN SPEED to {speed}"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def turn_fan_off(self):
         """Turns the fan off using TCP M-code ~M107."""
-        return await self._send_tcp_command("~M107\r\n", "TURN FAN OFF")
+        success, _ = await self._send_tcp_command("~M107\r\n", "TURN FAN OFF")
+        return success
 
     async def move_axis(
         self,
@@ -678,7 +687,8 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         command = " ".join(command_parts) + "\r\n"
         action = f"MOVE AXIS ({', '.join(action_parts)})"
 
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def move_relative(self, x: Optional[float]=None, y: Optional[float]=None, z: Optional[float]=None, feedrate: Optional[int]=None) -> bool:
         """Moves printer axes by a relative amount using G91 then G0, then restores G90."""
@@ -688,7 +698,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         if not success_g91:
             _LOGGER.error("Failed to set relative positioning (G91). Aborting relative move.")
             # Attempt to restore absolute positioning just in case, though G91 failure is problematic
-            await self._send_tcp_command("~G90\r\n", "RESTORE ABSOLUTE POSITIONING (G90) after G91 fail")
+            _, _ = await self._send_tcp_command("~G90\r\n", "RESTORE ABSOLUTE POSITIONING (G90) after G91 fail")
             return False
 
         move_attempted = False
@@ -748,19 +758,22 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
 
         command = f"~M30 {command_file_path}\r\n"
         action = f"DELETE FILE ({command_file_path})"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def disable_steppers(self) -> bool:
         """Disables all stepper motors on the printer (M18)."""
         command = "~M18\r\n"
         action = "DISABLE STEPPER MOTORS"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def enable_steppers(self) -> bool:
         """Enables all stepper motors on the printer (M17)."""
         command = "~M17\r\n"
         action = "ENABLE STEPPER MOTORS"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def set_speed_percentage(self, percentage: int) -> bool:
         """Sets the printer's speed factor override (M220 S<percentage>)."""
@@ -770,7 +783,8 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             return False
         command = f"~M220 S{percentage}\r\n"
         action = f"SET SPEED PERCENTAGE to {percentage}%"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def set_flow_percentage(self, percentage: int) -> bool:
         """Sets the printer's flow rate percentage using M221."""
@@ -779,7 +793,8 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             return False
         command = f"~M221 S{percentage}\r\n"
         action = f"SET FLOW PERCENTAGE to {percentage}%"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def home_axes(self, axes: Optional[List[str]] = None) -> bool:
         """Homes specified axes or all axes if None using G28."""
@@ -793,13 +808,15 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 action_detail = f"{valid_axes_to_home} AXES"
         command += "\r\n"
         action = f"HOME {action_detail}"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def filament_change(self) -> bool:
         """Initiates filament change procedure using M600."""
         command = "~M600\r\n"
         action = "FILAMENT CHANGE (M600)"
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def emergency_stop(self) -> bool:
         """Sends emergency stop command M112."""
@@ -808,7 +825,8 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         # M112 might not send an 'ok', printer might just halt or restart.
         # Consider if a different response_terminator or no terminator is needed.
         # For now, using default which might result in a timeout/false negative if printer halts before 'ok'.
-        return await self._send_tcp_command(command, action, response_terminator="ok\r\n")
+        success, _ = await self._send_tcp_command(command, action, response_terminator="ok\r\n")
+        return success
 
     async def list_files(self) -> bool:
         """Lists files on the printer's storage using M20."""
@@ -844,21 +862,24 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         command = f"~M300 S{pitch} P{duration}\r\n"
         action = f"PLAY BEEP (Pitch: {pitch}, Duration: {duration})"
         # _LOGGER.info(f"Attempting to {action}") # _send_tcp_command already logs this
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def start_bed_leveling(self) -> bool:
         """Starts the bed leveling process using G29."""
         command = "~G29\r\n"
         action = "START BED LEVELING (G29)"
         # _LOGGER.info(f"Attempting to {action}")
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def save_settings_to_eeprom(self) -> bool:
         """Saves settings to EEPROM using M500."""
         command = "~M500\r\n"
         action = "SAVE SETTINGS TO EEPROM (M500)"
         # _LOGGER.info(f"Attempting to {action}")
-        return await self._send_tcp_command(command, action)
+        success, _ = await self._send_tcp_command(command, action)
+        return success
 
     async def read_settings_from_eeprom(self) -> bool:
         """Reads settings from EEPROM using M501."""
@@ -876,4 +897,5 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         command = "~M502\r\n"
         action = "RESTORE FACTORY SETTINGS (M502)"
         # M502 might also have non-standard response or cause a restart.
-        return await self._send_tcp_command(command, action, response_terminator="ok\r\n")
+        success, _ = await self._send_tcp_command(command, action, response_terminator="ok\r\n")
+        return success
