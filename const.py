@@ -1,4 +1,7 @@
-"""Constants for the Flashforge Adventurer 5M PRO integration."""
+"""Constants for the Flashforge Adventurer 5M integration.
+
+Supports both Pro and non-Pro models.
+"""
 
 # Integration domain
 DOMAIN = "flashforge_adventurer5m"

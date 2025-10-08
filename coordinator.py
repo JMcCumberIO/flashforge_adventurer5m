@@ -1,5 +1,7 @@
 """
-Coordinator for the Flashforge Adventurer 5M PRO integration.
+Coordinator for the Flashforge Adventurer 5M integration.
+
+Supports both Pro and non-Pro models with lenient validation.
 """
 
 from __future__ import annotations

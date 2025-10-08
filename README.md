@@ -206,6 +206,31 @@ You can control your Flashforge Adventurer 5M Pro using various services provide
 
 ## Troubleshooting
 
+### Authentication Issues
+
+If you encounter "Invalid authentication credentials" errors during setup:
+
+**For A5M (non-Pro) Models:**
+- This integration now supports both A5M Pro and non-Pro models
+- Ensure you're using the correct Serial Number and Check Code from your printer
+- The Check Code is found in: Settings (Gear Icon) > Network (Second Tab) > Network mode as "Printer ID"
+
+**For All Models:**
+- Verify the printer is in LAN mode (not WAN/FlashCloud mode)
+- Ensure the IP address is correct and the printer is reachable on your network
+- Try using the printer's IP address instead of hostname
+- Check that port 8898 is accessible (status API)
+
+**Enable Debug Logging:**
+To get more detailed information about authentication failures:
+1. Go to Settings > System > Logs
+2. Click on the three dots menu
+3. Select "Set log level"
+4. Set `custom_components.flashforge_adventurer5m` to DEBUG
+5. Try the configuration again and check the logs for detailed response information
+
+### Camera Feed Issues
+
 If you encounter issues with the camera feed, such as:
 
 `Error getting new camera image from 3D Printer: Server disconnected without sending a response.`
