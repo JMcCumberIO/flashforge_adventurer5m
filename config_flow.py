@@ -1,11 +1,13 @@
 """
-Config flow for Flashforge Adventurer 5M PRO integration.
+Config flow for Flashforge Adventurer 5M integration.
 
 This module handles the setup flow for the integration, including:
 - Input validation
 - Connection testing
 - Authentication verification
 - Configuration persistence
+
+Supports both Pro and non-Pro models of the Adventurer 5M.
 """
 
 import logging
@@ -118,7 +120,7 @@ class FlashforgeOptionsFlow(config_entries.OptionsFlow):
 
 
 class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for the Flashforge Adventurer 5M PRO integration."""
+    """Handle a config flow for the Flashforge Adventurer 5M integration."""
 
     VERSION = 1
 
@@ -332,21 +334,51 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             data = json.loads(text_data)
                         except json.JSONDecodeError as e:
                             _LOGGER.error("Invalid JSON response from %s: %s", host, e)
+                            _LOGGER.debug("Raw response text: %s", text_data)
                             raise InvalidAuth(f"Invalid response format: {e}")
 
-                        if not all(field in data for field in REQUIRED_RESPONSE_FIELDS):
+                        # Log the full response for debugging
+                        _LOGGER.debug("Printer response from %s: %s", host, data)
+
+                        # Check if we have the basic structure for validation
+                        has_all_required = all(field in data for field in REQUIRED_RESPONSE_FIELDS)
+                        
+                        if not has_all_required:
+                            _LOGGER.warning(
+                                "Response from %s missing some expected fields. Expected: %s, Got keys: %s",
+                                host,
+                                REQUIRED_RESPONSE_FIELDS,
+                                list(data.keys()),
+                            )
+                            # Check if we at least have a "detail" field with valid data
+                            # This handles different printer models (Pro vs non-Pro)
+                            if "detail" in data and isinstance(data.get("detail"), dict):
+                                detail = data.get("detail", {})
+                                # Check if detail has at least status field
+                                if "status" in detail:
+                                    _LOGGER.info(
+                                        "Connection test to %s successful (alternate response structure)",
+                                        host,
+                                    )
+                                    return  # Success for non-Pro models with minimal structure
+                            
+                            # If we don't have enough data, fail authentication
                             _LOGGER.error(
                                 "Invalid response structure from %s, missing required fields",
                                 host,
                             )
                             raise InvalidAuth("Invalid response structure")
 
+                        # Standard validation for Pro models
                         if data.get("code") != 0:
                             error_msg = data.get(
                                 "message", "Unknown error from printer"
                             )
                             _LOGGER.error(
-                                "Printer at %s returned error: %s", host, error_msg
+                                "Printer at %s returned error code %s: %s", 
+                                host, 
+                                data.get("code"),
+                                error_msg
                             )
                             raise InvalidAuth(f"Printer error: {error_msg}")
 

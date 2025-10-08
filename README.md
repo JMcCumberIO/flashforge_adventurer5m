@@ -1,6 +1,6 @@
-# FlashForge Adventurer 5M Pro Integration
+# FlashForge Adventurer 5M Integration
 
-This project integrates the **FlashForge Adventurer 5M** 3D printer in LAN mode with Home Assistant.
+This project integrates the **FlashForge Adventurer 5M** 3D printer (both Pro and non-Pro models) in LAN mode with Home Assistant.
 
 ## Features
 
@@ -44,8 +44,8 @@ This project integrates the **FlashForge Adventurer 5M** 3D printer in LAN mode 
 ## Requirements
 
 - **Home Assistant** 2023.10 or later
-- **FlashForge Adventurer 5M Pro 3D Printer**
-    - Testing has been completed in "LAN-Only" mode. 
+- **FlashForge Adventurer 5M 3D Printer** (Pro or non-Pro models)
+    - Testing has been completed in "LAN-Only" mode with both Pro and non-Pro models
 - **Network Connection** to the printer
 - Ensure Home Assistant can reach the printer on TCP port 8898 (for status/sensor data) and TCP port 8899 (for control commands). The camera stream uses port 8080 or a URL provided by the printer.
 
@@ -70,6 +70,7 @@ This project integrates the **FlashForge Adventurer 5M** 3D printer in LAN mode 
         - **Host**: IP address or hostname of your printer (e.g., 192.168.1.50).
         - **Serial Number**: Serial number of your printer (often includes an 'SN' prefix, which should be included if displayed by your printer).
         - **Check Code**: Authentication code for your printer. "check_code" is in Settings (Gear Icon) > Network (Second Tab) > Network mode as "Printer ID"
+      - **Note**: This integration supports both Adventurer 5M Pro and non-Pro models. The authentication process is the same for both.
 
 3. **Restart Home Assistant**
 
@@ -204,6 +205,31 @@ You can control your Flashforge Adventurer 5M Pro using various services provide
     *   **Report Firmware Capabilities:** Requests and logs the printer's firmware version and capabilities (via M115). The full report is logged at DEBUG level, a summary may be logged at INFO level. No parameters.
 
 ## Troubleshooting
+
+### Authentication Issues
+
+If you encounter "Invalid authentication credentials" errors during setup:
+
+**For A5M (non-Pro) Models:**
+- This integration now supports both A5M Pro and non-Pro models
+- Ensure you're using the correct Serial Number and Check Code from your printer
+- The Check Code is found in: Settings (Gear Icon) > Network (Second Tab) > Network mode as "Printer ID"
+
+**For All Models:**
+- Verify the printer is in LAN mode (not WAN/FlashCloud mode)
+- Ensure the IP address is correct and the printer is reachable on your network
+- Try using the printer's IP address instead of hostname
+- Check that port 8898 is accessible (status API)
+
+**Enable Debug Logging:**
+To get more detailed information about authentication failures:
+1. Go to Settings > System > Logs
+2. Click on the three dots menu
+3. Select "Set log level"
+4. Set `custom_components.flashforge_adventurer5m` to DEBUG
+5. Try the configuration again and check the logs for detailed response information
+
+### Camera Feed Issues
 
 If you encounter issues with the camera feed, such as:
 

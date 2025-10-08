@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Flashforge Adventurer 5M PRO",
-        "description": "Set up your Flashforge Adventurer 5M PRO 3D printer for monitoring and control through Home Assistant.\n\nYou will need the printer's IP address, serial number, and check code to complete the setup.",
+        "title": "Connect to Flashforge Adventurer 5M",
+        "description": "Set up your Flashforge Adventurer 5M 3D printer (Pro or non-Pro) for monitoring and control through Home Assistant.\n\nYou will need the printer's IP address, serial number, and check code to complete the setup.",
         "data": {
           "host": "IP Address or Hostname",
           "serial_number": "Serial Number",
@@ -34,8 +34,8 @@
   "options": {
     "step": {
       "init": {
-        "title": "Flashforge Adventurer 5M PRO Options",
-        "description": "Adjust settings for your Flashforge Adventurer 5M PRO printer.",
+        "title": "Flashforge Adventurer 5M Options",
+        "description": "Adjust settings for your Flashforge Adventurer 5M printer.",
         "data": {
           "scan_interval": "Update Interval (seconds)"
         },

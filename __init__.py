@@ -59,7 +59,7 @@ PLATFORMS = ["sensor", "camera", "binary_sensor"] # Define PLATFORMS
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """
-    Set up the Flashforge Adventurer 5M PRO integration.
+    Set up the Flashforge Adventurer 5M integration (supports Pro and non-Pro models).
     """
     # If you don't support YAML configuration, do nothing here.
     return True
@@ -67,7 +67,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
-    Set up the Flashforge Adventurer 5M PRO integration from a config entry.
+    Set up the Flashforge Adventurer 5M integration from a config entry.
+    
+    Supports both Pro and non-Pro models with lenient validation.
     """
     host = entry.data["host"]
     serial_number = entry.data["serial_number"]
