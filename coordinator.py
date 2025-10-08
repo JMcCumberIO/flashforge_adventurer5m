@@ -507,23 +507,52 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         return current_data
 
     def _validate_response(self, data: dict[str, Any]) -> bool:
-        """Validate the structure of the HTTP /detail response."""
-        if not all(field in data for field in REQUIRED_RESPONSE_FIELDS):
-            _LOGGER.warning(
-                f"Missing one or more required top-level fields: {REQUIRED_RESPONSE_FIELDS} in data: {data}"
+        """Validate the structure of the HTTP /detail response.
+        
+        This validation is lenient to support both Pro and non-Pro models
+        which may have slightly different response structures.
+        """
+        # First check if we have all expected fields (Pro model)
+        has_all_required = all(field in data for field in REQUIRED_RESPONSE_FIELDS)
+        
+        if not has_all_required:
+            _LOGGER.debug(
+                f"Response missing some expected top-level fields: {REQUIRED_RESPONSE_FIELDS}. "
+                f"Got keys: {list(data.keys())}. Checking if minimal structure is present..."
             )
+            # Check if we at least have a "detail" field (non-Pro model)
+            if API_ATTR_DETAIL not in data:
+                _LOGGER.warning(
+                    f"Missing critical 'detail' field in response. Available keys: {list(data.keys())}"
+                )
+                return False
+        
+        # Check the detail section
+        detail_data = data.get(API_ATTR_DETAIL, {})
+        
+        if not isinstance(detail_data, dict):
+            _LOGGER.warning(f"'detail' field is not a dictionary: {type(detail_data)}")
             return False
-        # API_ATTR_DETAIL is "detail"
-        detail_data = data.get(
-            API_ATTR_DETAIL, {}
-        )  # Use constant if "detail" key was an API_ATTR_
-        if not isinstance(detail_data, dict) or not all(
+            
+        # Check if we have the critical detail fields
+        has_all_detail_fields = all(
             field in detail_data for field in REQUIRED_DETAIL_FIELDS
-        ):
-            _LOGGER.warning(
-                f"Missing one or more required detail fields: {REQUIRED_DETAIL_FIELDS} in detail: {detail_data}"
+        )
+        
+        if not has_all_detail_fields:
+            _LOGGER.debug(
+                f"Response missing some expected detail fields: {REQUIRED_DETAIL_FIELDS}. "
+                f"Got keys: {list(detail_data.keys())}. Checking if minimal structure is present..."
             )
-            return False
+            # At minimum, we need status field to determine printer state
+            if "status" not in detail_data:
+                _LOGGER.warning(
+                    f"Missing critical 'status' field in detail. Available keys: {list(detail_data.keys())}"
+                )
+                return False
+            # If we have status, consider it valid enough for non-Pro models
+            _LOGGER.info("Accepting response with minimal structure (non-Pro model detected)")
+        
         return True
 
     async def _send_http_command(

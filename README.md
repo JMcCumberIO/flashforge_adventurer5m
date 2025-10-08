@@ -1,6 +1,6 @@
-# FlashForge Adventurer 5M Pro Integration
+# FlashForge Adventurer 5M Integration
 
-This project integrates the **FlashForge Adventurer 5M** 3D printer in LAN mode with Home Assistant.
+This project integrates the **FlashForge Adventurer 5M** 3D printer (both Pro and non-Pro models) in LAN mode with Home Assistant.
 
 ## Features
 
@@ -44,8 +44,8 @@ This project integrates the **FlashForge Adventurer 5M** 3D printer in LAN mode 
 ## Requirements
 
 - **Home Assistant** 2023.10 or later
-- **FlashForge Adventurer 5M Pro 3D Printer**
-    - Testing has been completed in "LAN-Only" mode. 
+- **FlashForge Adventurer 5M 3D Printer** (Pro or non-Pro models)
+    - Testing has been completed in "LAN-Only" mode with both Pro and non-Pro models
 - **Network Connection** to the printer
 - Ensure Home Assistant can reach the printer on TCP port 8898 (for status/sensor data) and TCP port 8899 (for control commands). The camera stream uses port 8080 or a URL provided by the printer.
 
@@ -70,6 +70,7 @@ This project integrates the **FlashForge Adventurer 5M** 3D printer in LAN mode 
         - **Host**: IP address or hostname of your printer (e.g., 192.168.1.50).
         - **Serial Number**: Serial number of your printer (often includes an 'SN' prefix, which should be included if displayed by your printer).
         - **Check Code**: Authentication code for your printer. "check_code" is in Settings (Gear Icon) > Network (Second Tab) > Network mode as "Printer ID"
+      - **Note**: This integration supports both Adventurer 5M Pro and non-Pro models. The authentication process is the same for both.
 
 3. **Restart Home Assistant**
 
