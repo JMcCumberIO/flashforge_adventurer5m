@@ -1,7 +1,8 @@
 name: Bump version & changelog
+permissions:
+  contents: write
 
 on:
-  push:
     branches:
       - main
 
