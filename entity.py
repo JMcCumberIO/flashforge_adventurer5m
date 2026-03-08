@@ -52,13 +52,7 @@ class FlashforgeEntity(CoordinatorEntity[FlashforgeDataUpdateCoordinator]):
 
     async def async_added_to_hass(self) -> None:
         """When entity is added to hass."""
-        await super().async_added_to_hass() # Call CoordinatorEntity's method
-        # Register update listener
-        self.async_on_remove(
-            self.coordinator.async_add_listener(self._handle_coordinator_update)
-        )
-        # Initial update
-        self._handle_coordinator_update()
+        await super().async_added_to_hass()  # CoordinatorEntity handles listener registration
 
 
     @callback

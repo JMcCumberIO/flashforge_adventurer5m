@@ -5,6 +5,7 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorStateClass,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     UnitOfTemperature,
     UnitOfMass,
@@ -14,10 +15,12 @@ from homeassistant.const import (
     PERCENTAGE,
     REVOLUTIONS_PER_MINUTE,
 )
-from typing import Dict, Any # Import Dict and Any for type hinting
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .const import DOMAIN, API_ATTR_FIRMWARE_VERSION  # Import new constant
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from typing import Dict, Any  # Import Dict and Any for type hinting
+from .const import DOMAIN
 from .coordinator import FlashforgeDataUpdateCoordinator
+from .entity import FlashforgeEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -96,11 +99,11 @@ SENSOR_DEFINITIONS = {
     "printProgress": (
         "Print Progress",
         PERCENTAGE,
-        SensorDeviceClass.BATTERY,
+        None,
         SensorStateClass.MEASUREMENT,
         False,
         True,
-    ),  # Changed device_class
+    ),
     "printDuration": (
         "Print Duration",
         UnitOfTime.SECONDS,
@@ -301,7 +304,12 @@ SENSOR_DEFINITIONS = {
 }
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up Flashforge sensors from a config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
     sensors_to_add = []
 
@@ -342,7 +350,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         async_add_entities(sensors_to_add)
 
 
-class FlashforgeSensor(CoordinatorEntity, SensorEntity):
+class FlashforgeSensor(FlashforgeEntity, SensorEntity):
     """A sensor for one JSON field from the printer."""
 
     def __init__(
@@ -356,34 +364,19 @@ class FlashforgeSensor(CoordinatorEntity, SensorEntity):
         is_top_level: bool,
         is_percentage: bool,
     ):
-        super().__init__(coordinator)
-        self.coordinator = coordinator
+        super().__init__(coordinator, name_suffix=name, unique_id_key=attribute_key)
         self._attribute_key = attribute_key
         self._is_top_level = is_top_level
         self._is_percentage = is_percentage
 
-        self._attr_name = f"Flashforge {name}"
-        self._attr_unique_id = f"flashforge_{coordinator.serial_number}_{attribute_key.lower().replace(' ', '_')}"
         self._attr_device_class = device_class
         self._attr_state_class = state_class
         self._attr_native_unit_of_measurement = PERCENTAGE if is_percentage else unit
-        self._attr_extra_state_attributes: Dict[str, Any] = {}  # Add type hint
-        self._attr_native_value: Any = None # Initialize with type hint for native_value
-
-        fw = None
-        if self.coordinator.data and self.coordinator.data.get(
-            "detail"
-        ):  # Ensure detail exists
-            fw = self.coordinator.data.get("detail", {}).get(API_ATTR_FIRMWARE_VERSION)
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, self.coordinator.serial_number)},
-            "name": "Flashforge Adventurer 5M PRO",
-            "manufacturer": "Flashforge",
-            "model": "Adventurer 5M PRO",
-            "sw_version": fw,
-        }
+        self._attr_extra_state_attributes: Dict[str, Any] = {}
+        self._attr_native_value: Any = None
 
     def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
         self._attr_available = self.coordinator.last_update_success
         raw_value = None
         if self.coordinator.data:
@@ -394,19 +387,14 @@ class FlashforgeSensor(CoordinatorEntity, SensorEntity):
                     self._attribute_key
                 )
 
-        # Ensure extra_state_attributes is initialized (already done in __init__, but good for clarity)
-        # self._attr_extra_state_attributes = self._attr_extra_state_attributes or {} # Not needed if __init__ guarantees it's a dict
-
         if self._attribute_key == "printable_files":
             files_list = raw_value if isinstance(raw_value, list) else []
-            self._attr_native_value = len(files_list)  # State is the count of files
-            self._attr_extra_state_attributes["files"] = (
-                files_list  # Add 'files' to attributes
-            )
+            self._attr_native_value = len(files_list)
+            self._attr_extra_state_attributes["files"] = files_list
         elif self._is_percentage and raw_value is not None:
             try:
                 self._attr_native_value = round(float(raw_value) * 100.0, 1)
-            except (ValueError, TypeError) as e:  # Catch specific errors
+            except (ValueError, TypeError) as e:
                 _LOGGER.warning(
                     "Could not convert value '%s' to percentage for sensor %s (%s). Error: %s",
                     raw_value,
@@ -416,27 +404,12 @@ class FlashforgeSensor(CoordinatorEntity, SensorEntity):
                     exc_info=True,
                 )
                 self._attr_native_value = None
-        else:  # Default logic for other sensors
+        else:
             self._attr_native_value = raw_value
 
-        # Update sw_version in device_info if it changed
-        if self.coordinator.data and self.coordinator.data.get(
-            "detail"
-        ):  # Ensure detail exists
-            fw_version = self.coordinator.data.get("detail", {}).get(
-                API_ATTR_FIRMWARE_VERSION
-            )
-            if fw_version and self._attr_device_info.get("sw_version") != fw_version:
-                self._attr_device_info["sw_version"] = fw_version
         self.async_write_ha_state()
 
     @property
-    def native_value(self) -> Any: # Type hint for property getter
+    def native_value(self) -> Any:
+        """Return the sensor value."""
         return self._attr_native_value
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        self._handle_coordinator_update()
-        self.async_on_remove(
-            self.coordinator.async_add_listener(self._handle_coordinator_update)
-        )

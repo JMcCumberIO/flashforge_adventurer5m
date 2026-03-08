@@ -126,6 +126,38 @@ NAME_BED_LEVELING = "Bed Leveling Active"
 ICON_BED_LEVELING = "mdi:checkerboard" # Or mdi:format-list-bulleted-type
 
 # Service Name Constants
-# (It's better to import these from __init__.py if they are defined there,
-# but if defined here, ensure they match __init__.py and services.yaml)
 SERVICE_MOVE_RELATIVE = "move_relative"
+SERVICE_PAUSE_PRINT = "pause_print"
+SERVICE_RESUME_PRINT = "resume_print"
+SERVICE_CANCEL_PRINT = "cancel_print"
+SERVICE_HOME_AXES = "home_axes"
+SERVICE_FILAMENT_CHANGE = "filament_change"
+SERVICE_START_BED_LEVELING = "start_bed_leveling"
+SERVICE_START_PRINT = "start_print"
+
+# Device identity constants
+MANUFACTURER = "Flashforge"
+DEVICE_MODEL_AD5M_PRO = "Adventurer 5M PRO"
+DEVICE_NAME_DEFAULT = "Flashforge Adventurer 5M PRO"
+UNIQUE_ID_PREFIX = "flashforge_"
+
+# Printer state groups
+PAUSED_STATE = "PAUSED"
+IDLE_STATES = ["IDLE", "READY"]
+
+# API attribute keys for temperature setpoints
+API_ATTR_LEFT_TARGET_TEMP = "leftTargetTemp"
+API_ATTR_PLAT_TARGET_TEMP = "platTargetTemp"
+
+# Number entity range constants
+MIN_EXTRUDER_TEMP = 0.0
+MAX_EXTRUDER_TEMP = 300.0
+MIN_BED_TEMP = 0.0
+MAX_BED_TEMP = 120.0
+MIN_FAN_SPEED = 0.0
+MAX_FAN_SPEED = 255.0
+
+# Service call attribute keys
+ATTR_TEMPERATURE = "temperature"
+ATTR_SPEED = "speed"
+ATTR_FILE_PATH = "file_path"
