@@ -1,4 +1,4 @@
-# Test files and directories (local testing only)
+# Test files and directories (local testing only — require physical printer)
 tests/
 test_reports/
 coverage.xml
@@ -6,14 +6,13 @@ coverage.xml
 htmlcov/
 pytest.ini
 .pytest_cache/
+# Local-only scripts (contain printer credentials or test data)
 scripts/run_tests.py
-scripts/run_test_suite.py
 scripts/analyze_coverage.py
 scripts/analyze_test_performance.py
 scripts/generate_test_data.py
-scripts/validate_test_env.py
+scripts/setup_test_env.py
 TESTING.md
-requirements_test.txt
 
 # IDE and editor files
 .vscode/
