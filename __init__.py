@@ -50,11 +50,10 @@ SERVICE_READ_SETTINGS_FROM_EEPROM = "read_settings_from_eeprom"
 # Existing services that are being ensured or potentially modified
 SERVICE_FILAMENT_CHANGE = "filament_change" # Existing
 SERVICE_RESTORE_FACTORY_SETTINGS = "restore_factory_settings" # Existing
-SERVICE_MOVE_RELATIVE = "move_relative"
 
 
 # Platforms
-PLATFORMS = ["sensor", "camera", "binary_sensor"] # Define PLATFORMS
+PLATFORMS = ["sensor", "camera", "binary_sensor", "number", "select", "button"]
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -102,10 +101,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    # Forward setup to sensor and camera platforms using the updated method
-    await hass.config_entries.async_forward_entry_setups(
-        entry, ["sensor", "camera", "binary_sensor"]
-    )
+    # Forward setup to all platforms
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Add options update listener if not already present (standard practice)
     if not entry.update_listeners: # Check if any listeners are already attached
