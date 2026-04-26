@@ -267,7 +267,7 @@ SENSOR_DEFINITIONS = {
         None,
         SensorStateClass.MEASUREMENT,
         False,
-        True,
+        False,  # already a whole-number %, not a 0-1 fraction
     ),
     "printable_files": (
         "Printable Files Count",
