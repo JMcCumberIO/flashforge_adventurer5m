@@ -305,7 +305,7 @@ class FlashforgeBinarySensor(FlashforgeEntity, BinarySensorEntity):
         # Printing status sensor (uses "detail" object)
         if self._is_printing_sensor:
             status = detail.get(API_ATTR_STATUS)
-            return status in PRINTING_STATES if status else False
+            return status.upper() in PRINTING_STATES if status else False
 
         # Connection status sensor
         if self._connection_status_sensor:
