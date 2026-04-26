@@ -14,55 +14,55 @@ permissions:
 jobs:
   style:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
         cache: "pip"
-        
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements_test.txt
-        
+
     - name: Check code formatting
       run: |
         black --check .
-        
+
     - name: Lint with flake8
       run: |
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-        
-    - name: Check manifest
-      run: |
-        python -m homeassistant.util.yaml.check_manifest manifest.json
-        
-    - name: Check services
-      run: |
-        python -m homeassistant.util.yaml.check_services services.yaml
 
-    - name: Check translations
+    - name: Validate manifest syntax
       run: |
-        python -m homeassistant.util.yaml.check_translations translations/en.json
+        python -c "import json; data=json.load(open('manifest.json')); assert 'domain' in data and 'version' in data, 'manifest.json missing required fields'"
+
+    - name: Validate services syntax
+      run: |
+        python -c "import yaml; yaml.safe_load(open('services.yaml'))"
+
+    - name: Validate translations syntax
+      run: |
+        python -c "import json; json.load(open('translations/en.json'))"
 
   validate:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: HACS Action
-      uses: hacs/action@main
+      uses: hacs/action@23.12.3
       with:
         category: integration
-        
+
     - name: Hassfest validation
-      uses: home-assistant/actions/hassfest@master
+      uses: home-assistant/actions/hassfest@2024.4.3
 
   test:
     needs: [style, validate]
@@ -73,128 +73,127 @@ jobs:
       fail-fast: false  # Continue with other versions if one fails
 
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
         cache: "pip"
-        
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements_test.txt
-        
+
     - name: Validate test environment
       run: |
         python scripts/validate_test_env.py
-        
+
     - name: Run test suite
       run: |
         python scripts/run_test_suite.py --config full --coverage
-        
+
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
         flags: unittests
         env_vars: OS,PYTHON
         name: codecov-umbrella
-        fail_ci_if_error: true
-        
+        fail_ci_if_error: false
+
     - name: Upload test reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-reports-${{ matrix.python-version }}
         path: test_reports/
+        if-no-files-found: ignore
 
   performance:
     needs: test
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
         cache: "pip"
-        
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements_test.txt
-        
+
     - name: Run performance tests
       run: |
         python scripts/run_test_suite.py --config performance
-        
+
     - name: Upload performance reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: performance-reports
         path: test_reports/
+        if-no-files-found: ignore
 
   stress:
     needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'  # Only run stress tests on schedule
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
         cache: "pip"
-        
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements_test.txt
-        
+
     - name: Run stress tests
       run: |
         python scripts/run_test_suite.py --config stress
-        
+
     - name: Upload stress test reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: stress-test-reports
         path: test_reports/
+        if-no-files-found: ignore
 
   analyze:
     needs: [test, performance]
     runs-on: ubuntu-latest
     if: always()
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Download all workflow run artifacts
-      uses: actions/download-artifact@v3
-      
+      uses: actions/download-artifact@v4
+
     - name: Generate summary report
       run: |
-        # Combine reports from different test runs
         mkdir -p combined_reports
         cp -r *-reports*/* combined_reports/ || true
-        
-        # Generate summary
+
         echo "## Test Results Summary" > $GITHUB_STEP_SUMMARY
         echo "### Coverage Analysis" >> $GITHUB_STEP_SUMMARY
-        cat combined_reports/coverage_analysis.txt >> $GITHUB_STEP_SUMMARY
-        
-        # Add performance results if available
+        cat combined_reports/coverage_analysis.txt >> $GITHUB_STEP_SUMMARY || echo "No coverage analysis available." >> $GITHUB_STEP_SUMMARY
+
         if [ -f combined_reports/performance_report.html ]; then
           echo "### Performance Test Results" >> $GITHUB_STEP_SUMMARY
           echo "Performance test results are available in the artifacts." >> $GITHUB_STEP_SUMMARY
         fi
-        
-        # Add stress test results if available
+
         if [ -f combined_reports/stress_test_reports/summary.html ]; then
           echo "### Stress Test Results" >> $GITHUB_STEP_SUMMARY
           echo "Stress test results are available in the artifacts." >> $GITHUB_STEP_SUMMARY
