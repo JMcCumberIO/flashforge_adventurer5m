@@ -134,6 +134,9 @@ SERVICE_HOME_AXES = "home_axes"
 SERVICE_FILAMENT_CHANGE = "filament_change"
 SERVICE_START_BED_LEVELING = "start_bed_leveling"
 SERVICE_START_PRINT = "start_print"
+SERVICE_SET_EXTRUDER_TEMPERATURE = "set_extruder_temperature"
+SERVICE_SET_BED_TEMPERATURE = "set_bed_temperature"
+SERVICE_SET_FAN_SPEED = "set_fan_speed"
 
 # Device identity constants
 MANUFACTURER = "Flashforge"
