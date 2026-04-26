@@ -15,6 +15,7 @@ from homeassistant.const import (
     UnitOfInformation,
     PERCENTAGE,
     REVOLUTIONS_PER_MINUTE,
+    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -199,7 +200,7 @@ SENSOR_DEFINITIONS = {
     # "internalFanStatus": ("Internal Fan Status", None, None, None, False, False), # Replaced by binary_sensor
     "tvoc": (
         "TVOC",
-        "µg/m³",
+        CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
         SensorStateClass.MEASUREMENT,
         False,

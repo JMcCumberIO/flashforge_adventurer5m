@@ -7,8 +7,9 @@ import voluptuous as vol
 from .const import (
     DOMAIN,
     DEFAULT_SCAN_INTERVAL,
-    CONF_PRINTING_SCAN_INTERVAL, # Added
-    DEFAULT_PRINTING_SCAN_INTERVAL # Added
+    CONF_PRINTING_SCAN_INTERVAL,
+    DEFAULT_PRINTING_SCAN_INTERVAL,
+    SERVICE_MOVE_RELATIVE,
 )
 from .coordinator import FlashforgeDataUpdateCoordinator
 from homeassistant.core import ServiceCall # For type hinting

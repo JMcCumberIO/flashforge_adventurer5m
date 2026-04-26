@@ -81,7 +81,7 @@ class FlashforgeAdventurer5MCamera(CoordinatorEntity, MjpegCamera):
         MjpegCamera.__init__(
             self,
             name=name,
-            mjpeg_url=initial_mjpeg_url,  # This can be None
+            mjpeg_url=initial_mjpeg_url or MJPEG_DUMMY_URL,
             still_image_url=None,  # No separate still image URL
         )
         self._attr_unique_id = f"flashforge_{serial_number}_camera"
