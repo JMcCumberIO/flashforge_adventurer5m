@@ -10,6 +10,7 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfMass,
     UnitOfLength,
+    UnitOfSpeed,
     UnitOfTime,
     UnitOfInformation,
     PERCENTAGE,
@@ -232,7 +233,7 @@ SENSOR_DEFINITIONS = {
     ),
     "currentPrintSpeed": (
         "Current Print Speed",
-        "mm/s",
+        UnitOfSpeed.MILLIMETERS_PER_SECOND,
         SensorDeviceClass.SPEED,
         SensorStateClass.MEASUREMENT,
         False,
@@ -372,6 +373,7 @@ class FlashforgeSensor(FlashforgeEntity, SensorEntity):
         self._attr_device_class = device_class
         self._attr_state_class = state_class
         self._attr_native_unit_of_measurement = PERCENTAGE if is_percentage else unit
+        self._attr_suggested_unit_of_measurement = PERCENTAGE if is_percentage else unit
         self._attr_extra_state_attributes: Dict[str, Any] = {}
         self._attr_native_value: Any = None
 
