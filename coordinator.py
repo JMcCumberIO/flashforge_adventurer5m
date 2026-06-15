@@ -103,8 +103,8 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
     async def _fetch_bed_leveling_status(self) -> dict:
         """Fetches and parses bed leveling status from M420 command."""
         status_data = {API_ATTR_BED_LEVELING_STATUS: None}
-        command = "~M420 S0\r\n"
-        action = "FETCH BED LEVELING STATUS (M420 S0)"
+        command = "~M420\r\n"
+        action = "FETCH BED LEVELING STATUS (M420)"
 
         tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
         _LOGGER.debug(f"Attempting to {action} using TCP command: {command.strip()}")
@@ -119,7 +119,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 elif "bed leveling is off" in response_lower:
                     status_data[API_ATTR_BED_LEVELING_STATUS] = False
                 else:
-                    _LOGGER.warning(f"Could not determine bed leveling status from M420 response: {response[:200]}")
+                    _LOGGER.debug(f"Could not determine bed leveling status from M420 response: {response[:200]}")
                 _LOGGER.debug(f"Parsed bed leveling data: {status_data}")
             elif success:
                 _LOGGER.warning(f"{action} command sent, but no parseable data in response: {response}")
