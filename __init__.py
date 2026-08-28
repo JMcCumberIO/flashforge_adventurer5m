@@ -51,6 +51,7 @@ SERVICE_READ_SETTINGS_FROM_EEPROM = "read_settings_from_eeprom"
 # Existing services that are being ensured or potentially modified
 SERVICE_FILAMENT_CHANGE = "filament_change" # Existing
 SERVICE_RESTORE_FACTORY_SETTINGS = "restore_factory_settings" # Existing
+SERVICE_TEST_M601_CONTROL_SESSION = "test_m601_control_session" # Diagnostic, see issue #103
 
 
 # Platforms
@@ -311,6 +312,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info(f"Service '{SERVICE_MOVE_RELATIVE}' called with offsets: x={x}, y={y}, z={z}, feedrate={feedrate}")
         await coordinator.move_relative(x=x, y=y, z=z, feedrate=feedrate)
 
+    async def handle_test_m601_control_session(call: ServiceCall) -> None:
+        """Handle the test_m601_control_session diagnostic service call."""
+        coordinator: FlashforgeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+        _LOGGER.info(
+            f"Service '{SERVICE_TEST_M601_CONTROL_SESSION}' called. "
+            "Probing M601/M602 control-session behavior; results will appear "
+            "in this log at INFO level below."
+        )
+        await coordinator.test_m601_control_session()
+
     # Register all services
     hass.services.async_register(DOMAIN, SERVICE_PAUSE_PRINT, handle_pause_print)
     hass.services.async_register(
@@ -418,6 +429,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, SERVICE_START_BED_LEVELING, handle_start_bed_leveling)
     hass.services.async_register(DOMAIN, SERVICE_READ_SETTINGS_FROM_EEPROM, handle_read_settings_from_eeprom)
     hass.services.async_register(DOMAIN, SERVICE_MOVE_RELATIVE, handle_move_relative, schema=SERVICE_MOVE_RELATIVE_SCHEMA)
+    hass.services.async_register(
+        DOMAIN, SERVICE_TEST_M601_CONTROL_SESSION, handle_test_m601_control_session
+    )
 
     return True
 
@@ -458,6 +472,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 SERVICE_START_BED_LEVELING,
                 SERVICE_READ_SETTINGS_FROM_EEPROM,
                 SERVICE_MOVE_RELATIVE,
+                SERVICE_TEST_M601_CONTROL_SESSION,
             ]
             for service_name in all_service_names:
                 if service_name:
