@@ -930,3 +930,127 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         # M502 might also have non-standard response or cause a restart.
         success, _ = await self._send_tcp_command(command, action, response_terminator="ok\r\n")
         return success
+
+    async def _probe_send(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, command: str) -> str:
+        """Sends a single bare command (no ~ prefix required by caller) on an open stream and reads the response."""
+        writer.write(f"~{command}\r\n".encode("utf-8"))
+        await asyncio.wait_for(writer.drain(), timeout=COORDINATOR_COMMAND_TIMEOUT)
+        buf = b""
+        try:
+            while True:
+                chunk = await asyncio.wait_for(reader.read(1024), timeout=COORDINATOR_COMMAND_TIMEOUT)
+                if not chunk:
+                    break
+                buf += chunk
+                if b"ok\r\n" in buf:
+                    break
+        except asyncio.TimeoutError:
+            pass
+        return buf.decode("utf-8", errors="ignore").strip()
+
+    async def _probe_open_stream(self) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        """Opens a fresh TCP connection to the printer's M-code port for probing."""
+        return await asyncio.wait_for(
+            asyncio.open_connection(self.host, DEFAULT_MCODE_PORT),
+            timeout=COORDINATOR_COMMAND_TIMEOUT,
+        )
+
+    @staticmethod
+    async def _probe_close_stream(writer: asyncio.StreamWriter) -> None:
+        """Closes a probe stream, swallowing errors (mirrors FlashforgeTCPClient.close)."""
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception as e:  # noqa: BLE001 - diagnostic cleanup, never fatal
+            _LOGGER.debug(f"Error closing probe connection: {e}")
+
+    async def test_m601_control_session(self) -> dict[str, Any]:
+        """Diagnostic probe for the M601/M602 TCP control-session handshake.
+
+        flashforge_tcp.py currently opens a fresh connection, sends one
+        command, and closes -- for every M-code -- without ever sending
+        `~M601 S1` (request control) or `~M602` (release control). Some
+        reverse-engineered FlashForge documentation describes that handshake
+        as required by newer firmware before most TCP commands are accepted.
+        See https://github.com/JMcCumberIO/flashforge_adventurer5m/issues/103.
+
+        This mirrors scripts/test_m601_control_session.py but runs from
+        inside Home Assistant, reusing this coordinator's already-configured
+        host/port instead of requiring a separate manual run. Only read-only
+        commands are sent (M115, M119, M105, M27); nothing here moves an
+        axis, changes a setpoint, or touches a print job.
+
+        Results are logged at INFO level and also returned as a dict:
+            {
+                "pattern_a_no_handshake": [(command, response), ...],
+                "pattern_b_persistent_session": [(command, response), ...],
+                "pattern_c_handshake_per_connection": [(command, response), ...],
+            }
+        or {"error": "..."} if the printer could not be reached.
+        """
+        probe_commands = ["M115", "M119", "M105", "M27"]
+
+        async def pattern_a() -> list[tuple[str, str]]:
+            """Fresh connection per command, no handshake (today's actual behavior)."""
+            results = []
+            for cmd in probe_commands:
+                reader, writer = await self._probe_open_stream()
+                try:
+                    resp = await self._probe_send(reader, writer, cmd)
+                finally:
+                    await self._probe_close_stream(writer)
+                results.append((cmd, resp))
+            return results
+
+        async def pattern_b() -> list[tuple[str, str]]:
+            """One persistent connection: M601 S1 once, then commands, then M602."""
+            results = []
+            reader, writer = await self._probe_open_stream()
+            try:
+                results.append(("M601 S1", await self._probe_send(reader, writer, "M601 S1")))
+                for cmd in probe_commands:
+                    results.append((cmd, await self._probe_send(reader, writer, cmd)))
+                results.append(("M602", await self._probe_send(reader, writer, "M602")))
+            finally:
+                await self._probe_close_stream(writer)
+            return results
+
+        async def pattern_c() -> list[tuple[str, str]]:
+            """Fresh connection per command, M601 S1 sent first on each connection."""
+            results = []
+            for cmd in probe_commands:
+                reader, writer = await self._probe_open_stream()
+                try:
+                    await self._probe_send(reader, writer, "M601 S1")
+                    resp = await self._probe_send(reader, writer, cmd)
+                finally:
+                    await self._probe_close_stream(writer)
+                results.append((cmd, resp))
+            return results
+
+        _LOGGER.info(
+            f"Starting M601/M602 control-session probe against {self.host}:{DEFAULT_MCODE_PORT} (see issue #103)."
+        )
+        report: dict[str, Any] = {}
+        try:
+            report["pattern_a_no_handshake"] = await pattern_a()
+            report["pattern_b_persistent_session"] = await pattern_b()
+            report["pattern_c_handshake_per_connection"] = await pattern_c()
+        except (OSError, asyncio.TimeoutError) as e:
+            _LOGGER.error(
+                f"M601/M602 probe failed to reach {self.host}:{DEFAULT_MCODE_PORT}: {e}"
+            )
+            return {"error": str(e)}
+
+        for pattern_name, results in report.items():
+            _LOGGER.info(f"M601/M602 probe - {pattern_name}:")
+            for cmd, resp in results:
+                _LOGGER.info(f"  ~{cmd} -> {resp!r}")
+
+        _LOGGER.info(
+            "M601/M602 probe complete. Compare the three patterns above: if they "
+            "all return normal-looking data, the handshake is not required. If "
+            "pattern_a shows errors/empty responses that b or c do not, the "
+            "integration needs to adopt the handshake."
+        )
+        return report

@@ -322,3 +322,14 @@ move_relative:
           min: 100 # Consistent with move_axis
           max: 6000 # Consistent with move_axis
           unit_of_measurement: "mm/min"
+
+test_m601_control_session:
+  name: Test M601/M602 Control Session
+  description: >-
+    Diagnostic: probes whether the printer's firmware requires the M601/M602
+    TCP control-session handshake before accepting commands. Sends only
+    read-only commands (M115, M119, M105, M27) in three connection patterns
+    and logs the raw responses at INFO level for comparison. Does not move
+    an axis, change a setpoint, or touch a print job. See the integration's
+    Home Assistant log after calling this service for results.
+  fields: {}
