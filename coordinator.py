@@ -156,6 +156,23 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 # y_min:open
                 # z_min:TRIGGERED
                 # filament:open (or some other key for filament sensor)
+                #
+                # KNOWN GAP (see issue tracker): the Adventurer 5M / 5M Pro's actual
+                # M119 response does not use this format at all. A real capture
+                # (firmware v3.2.7) looks like:
+                #   Endstop: X-max: 110 Y-max: 110 Z-min: 0
+                #   MachineStatus: READY
+                #   MoveMode: READY
+                #   Status: S:1 L:0 J:0 F:0
+                #   LED: 1
+                #   CurrentFile:
+                # None of "x_min:"/"y_min:"/"z_min:"/"filament" appear in it, so the
+                # parsing below never matches and these four values stay None on
+                # every poll -- not a crash, just no signal. The X-max/Y-max/Z-min
+                # numbers above also look like static travel limits (they track the
+                # printer's build volume from M115, not a live trigger state), so a
+                # simple keyword fix isn't obviously correct without a capture taken
+                # while an endstop or the filament sensor is actually triggered.
                 lines = response.lower().split('\n')
                 for line in lines:
                     line = line.strip()
