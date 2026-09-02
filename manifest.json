@@ -1,7 +1,7 @@
 {
   "domain": "flashforge_adventurer5m",
   "name": "Flashforge Adventurer 5M",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "documentation": "https://github.com/xombie21/flashforge_adventurer5m/blob/main/README.md",
   "codeowners": [
     "xombie21"
