@@ -19,12 +19,24 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from typing import Dict, Any  # Import Dict and Any for type hinting
+from typing import Dict, Any, Optional  # Import Dict, Any, Optional for type hinting
 from .const import DOMAIN
 from .coordinator import FlashforgeDataUpdateCoordinator
 from .entity import FlashforgeEntity
 
 _LOGGER = logging.getLogger(__name__)
+
+# Suggested display units for duration sensors whose native/API unit reads
+# awkwardly at typical magnitudes (e.g. a multi-hour print duration shown in
+# raw seconds). The native unit stays the accurate, unconverted API value so
+# history graphs and long-term statistics remain valid; only the *displayed*
+# unit changes, which Home Assistant converts automatically since these are
+# all UnitOfTime values. Sensors not listed here keep suggested == native.
+SENSOR_SUGGESTED_UNIT_OVERRIDES = {
+    "printDuration": UnitOfTime.MINUTES,
+    "estimatedTime": UnitOfTime.MINUTES,
+    "cumulativePrintTime": UnitOfTime.HOURS,
+}
 
 # Centralized sensor definitions: key: (name, unit, device_class, state_class, is_top_level, is_percentage)
 SENSOR_DEFINITIONS = {
@@ -306,6 +318,69 @@ SENSOR_DEFINITIONS = {
 }
 
 
+# Adaptive, human-readable duration sensors companion to the numeric ones
+# above: (source_attribute_key, name, unique_id_key, is_top_level, seconds_per_unit).
+# seconds_per_unit normalizes the source API value to seconds before
+# formatting, since printDuration/estimatedTime are already in seconds but
+# cumulativePrintTime is in minutes.
+FRIENDLY_DURATION_SENSORS = [
+    ("printDuration", "Print Duration (Friendly)", "print_duration_friendly", False, 1),
+    (
+        "estimatedTime",
+        "Estimated Time Remaining (Friendly)",
+        "estimated_time_remaining_friendly",
+        False,
+        1,
+    ),
+    (
+        "cumulativePrintTime",
+        "Cumulative Print Time (Friendly)",
+        "cumulative_print_time_friendly",
+        False,
+        60,
+    ),
+]
+
+
+def _format_duration_adaptive(total_seconds: Any) -> Optional[str]:
+    """Format a duration in seconds as an adaptive, human-readable string.
+
+    Scales from seconds to minutes to hours to days, showing the two most
+    significant units at whichever scale the value falls into, e.g. "45s",
+    "12m 30s", "2h 15m", "1d 3h".
+    """
+    if total_seconds is None:
+        return None
+    try:
+        total_seconds = max(0, int(round(float(total_seconds))))
+    except (ValueError, TypeError):
+        return None
+
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    if days > 0:
+        return f"{days}d {hours}h"
+    if hours > 0:
+        return f"{hours}h {minutes}m"
+    if minutes > 0:
+        return f"{minutes}m {seconds}s"
+    return f"{seconds}s"
+
+
+def _source_value_exists(
+    coordinator: FlashforgeDataUpdateCoordinator, attribute_key: str, is_top_level: bool
+) -> bool:
+    """Check whether the coordinator currently has data for a given API key."""
+    if is_top_level:
+        return attribute_key in coordinator.data
+    return (
+        bool(coordinator.data.get("detail"))
+        and attribute_key in coordinator.data["detail"]
+    )
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -323,16 +398,7 @@ async def async_setup_entry(
         is_top_level,
         is_percentage,
     ) in SENSOR_DEFINITIONS.items():
-        value_exists = False
-        if is_top_level and attribute_key in coordinator.data:
-            value_exists = True
-        elif (
-            not is_top_level
-            and coordinator.data.get("detail")
-            and attribute_key in coordinator.data["detail"]
-        ):
-            value_exists = True
-        if value_exists:
+        if _source_value_exists(coordinator, attribute_key, is_top_level):
             sensors_to_add.append(
                 FlashforgeSensor(
                     coordinator,
@@ -347,6 +413,29 @@ async def async_setup_entry(
             )
         else:
             _LOGGER.debug(f"Skipping sensor {attribute_key}, no data found.")
+
+    for (
+        attribute_key,
+        name,
+        unique_id_key,
+        is_top_level,
+        seconds_per_unit,
+    ) in FRIENDLY_DURATION_SENSORS:
+        if _source_value_exists(coordinator, attribute_key, is_top_level):
+            sensors_to_add.append(
+                FlashforgeFriendlyDurationSensor(
+                    coordinator,
+                    attribute_key,
+                    name,
+                    unique_id_key,
+                    is_top_level,
+                    seconds_per_unit,
+                )
+            )
+        else:
+            _LOGGER.debug(
+                f"Skipping friendly duration sensor {attribute_key}, no data found."
+            )
 
     if sensors_to_add:
         async_add_entities(sensors_to_add)
@@ -374,7 +463,11 @@ class FlashforgeSensor(FlashforgeEntity, SensorEntity):
         self._attr_device_class = device_class
         self._attr_state_class = state_class
         self._attr_native_unit_of_measurement = PERCENTAGE if is_percentage else unit
-        self._attr_suggested_unit_of_measurement = PERCENTAGE if is_percentage else unit
+        self._attr_suggested_unit_of_measurement = (
+            PERCENTAGE
+            if is_percentage
+            else SENSOR_SUGGESTED_UNIT_OVERRIDES.get(attribute_key, unit)
+        )
         self._attr_extra_state_attributes: Dict[str, Any] = {}
         self._attr_native_value: Any = None
 
@@ -415,4 +508,58 @@ class FlashforgeSensor(FlashforgeEntity, SensorEntity):
     @property
     def native_value(self) -> Any:
         """Return the sensor value."""
+        return self._attr_native_value
+
+
+class FlashforgeFriendlyDurationSensor(FlashforgeEntity, SensorEntity):
+    """Adaptive human-readable duration sensor, e.g. "2h 15m" or "1d 3h".
+
+    Companion to the numeric duration sensor for the same source value. This
+    entity has no device_class or unit -- it's a formatted string, not a
+    statistics-friendly number -- so the numeric sensor remains the source of
+    truth for history graphs, long-term statistics, and automations.
+    """
+
+    _attr_icon = "mdi:timer-outline"
+
+    def __init__(
+        self,
+        coordinator: FlashforgeDataUpdateCoordinator,
+        attribute_key: str,
+        name: str,
+        unique_id_key: str,
+        is_top_level: bool,
+        seconds_per_unit: int,
+    ):
+        super().__init__(coordinator, name_suffix=name, unique_id_key=unique_id_key)
+        self._attribute_key = attribute_key
+        self._is_top_level = is_top_level
+        self._seconds_per_unit = seconds_per_unit
+        self._attr_native_value: Optional[str] = None
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._attr_available = self.coordinator.last_update_success
+        raw_value = None
+        if self.coordinator.data:
+            if self._is_top_level:
+                raw_value = self.coordinator.data.get(self._attribute_key)
+            elif self.coordinator.data.get("detail"):
+                raw_value = self.coordinator.data.get("detail", {}).get(
+                    self._attribute_key
+                )
+
+        total_seconds = None
+        if raw_value is not None:
+            try:
+                total_seconds = float(raw_value) * self._seconds_per_unit
+            except (ValueError, TypeError):
+                total_seconds = None
+
+        self._attr_native_value = _format_duration_adaptive(total_seconds)
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> Optional[str]:
+        """Return the formatted duration string."""
         return self._attr_native_value
