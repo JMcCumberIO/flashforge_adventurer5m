@@ -54,6 +54,7 @@ class FlashforgeExtruderTemperatureNumber(FlashforgeEntity, NumberEntity):
 
     _attr_device_class = NumberDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_suggested_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_native_min_value = MIN_EXTRUDER_TEMP
     _attr_native_max_value = MAX_EXTRUDER_TEMP
     _attr_native_step = 1.0
@@ -98,6 +99,7 @@ class FlashforgeBedTemperatureNumber(FlashforgeEntity, NumberEntity):
 
     _attr_device_class = NumberDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_suggested_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_native_min_value = MIN_BED_TEMP
     _attr_native_max_value = MAX_BED_TEMP
     _attr_native_step = 1.0
