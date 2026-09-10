@@ -292,7 +292,9 @@ class FlashforgeBinarySensor(FlashforgeEntity, BinarySensorEntity):
             )
             return False
 
-        detail = self.coordinator.data.get("detail", {}) # For existing sensors that use it
+        detail = self.coordinator.data.get(
+            "detail", {}
+        )  # For existing sensors that use it
 
         # For attribute-based sensors that get data from root of coordinator.data
         # (like the new endstop sensors)
@@ -329,7 +331,9 @@ class FlashforgeBinarySensor(FlashforgeEntity, BinarySensorEntity):
         # For attribute-based sensors
         if self._detail_attribute:
             if self._is_top_level:
-                return self.coordinator.data.get(self._detail_attribute) == self._value_on
+                return (
+                    self.coordinator.data.get(self._detail_attribute) == self._value_on
+                )
             else:
                 return detail.get(self._detail_attribute) == self._value_on
 

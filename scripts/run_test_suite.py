@@ -4,6 +4,7 @@ Tests requiring a physical printer are kept local-only and excluded from the
 repository. This script runs whatever tests are present; exit code 5
 (no tests collected) is treated as success in CI.
 """
+
 import argparse
 import subprocess
 import sys
@@ -40,9 +41,7 @@ def main() -> None:
         choices=["quick", "full", "performance", "stress"],
         help="Test configuration to run",
     )
-    parser.add_argument(
-        "--coverage", action="store_true", help="Collect coverage data"
-    )
+    parser.add_argument("--coverage", action="store_true", help="Collect coverage data")
     args = parser.parse_args()
 
     cmd = build_pytest_cmd(args.config, args.coverage)

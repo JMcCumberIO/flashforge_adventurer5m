@@ -90,8 +90,7 @@ class FlashforgeOptionsFlow(config_entries.OptionsFlow):
             self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
         )
         current_printing_scan_interval = self.config_entry.options.get(
-            CONF_PRINTING_SCAN_INTERVAL,
-            DEFAULT_PRINTING_SCAN_INTERVAL
+            CONF_PRINTING_SCAN_INTERVAL, DEFAULT_PRINTING_SCAN_INTERVAL
         )
 
         # Build the options schema
@@ -341,8 +340,10 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         _LOGGER.debug("Printer response from %s: %s", host, data)
 
                         # Check if we have the basic structure for validation
-                        has_all_required = all(field in data for field in REQUIRED_RESPONSE_FIELDS)
-                        
+                        has_all_required = all(
+                            field in data for field in REQUIRED_RESPONSE_FIELDS
+                        )
+
                         if not has_all_required:
                             _LOGGER.warning(
                                 "Response from %s missing some expected fields. Expected: %s, Got keys: %s",
@@ -352,7 +353,9 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             )
                             # Check if we at least have a "detail" field with valid data
                             # This handles different printer models (Pro vs non-Pro)
-                            if "detail" in data and isinstance(data.get("detail"), dict):
+                            if "detail" in data and isinstance(
+                                data.get("detail"), dict
+                            ):
                                 detail = data.get("detail", {})
                                 # Check if detail has at least status field
                                 if "status" in detail:
@@ -361,7 +364,7 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                         host,
                                     )
                                     return  # Success for non-Pro models with minimal structure
-                            
+
                             # If we don't have enough data, fail authentication
                             _LOGGER.error(
                                 "Invalid response structure from %s, missing required fields",
@@ -375,10 +378,10 @@ class FlashforgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 "message", "Unknown error from printer"
                             )
                             _LOGGER.error(
-                                "Printer at %s returned error code %s: %s", 
-                                host, 
+                                "Printer at %s returned error code %s: %s",
+                                host,
                                 data.get("code"),
-                                error_msg
+                                error_msg,
                             )
                             raise InvalidAuth(f"Printer error: {error_msg}")
 

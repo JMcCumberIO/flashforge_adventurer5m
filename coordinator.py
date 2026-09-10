@@ -10,7 +10,7 @@ import asyncio
 import logging
 import re  # For parsing M114
 from datetime import timedelta
-from typing import Any, Optional, List # Added List
+from typing import Any, Optional, List  # Added List
 
 import aiohttp
 
@@ -32,9 +32,9 @@ from .const import (
     REQUIRED_RESPONSE_FIELDS,
     REQUIRED_DETAIL_FIELDS,
     DEFAULT_SCAN_INTERVAL,
-    DEFAULT_PRINTING_SCAN_INTERVAL, # Added
-    PRINTING_STATES,               # Added
-    API_ATTR_STATUS,               # Added
+    DEFAULT_PRINTING_SCAN_INTERVAL,  # Added
+    PRINTING_STATES,  # Added
+    API_ATTR_STATUS,  # Added
     TCP_CMD_PRINT_FILE_PREFIX_USER,
     TCP_CMD_PRINT_FILE_PREFIX_ROOT,
     API_ATTR_DETAIL,
@@ -57,20 +57,22 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         host: str,
         serial_number: str,
         check_code: str,
-        regular_scan_interval: int = DEFAULT_SCAN_INTERVAL, # Renamed
-        printing_scan_interval: int = DEFAULT_PRINTING_SCAN_INTERVAL, # Added
+        regular_scan_interval: int = DEFAULT_SCAN_INTERVAL,  # Renamed
+        printing_scan_interval: int = DEFAULT_PRINTING_SCAN_INTERVAL,  # Added
     ):
         super().__init__(
             hass,
             _LOGGER,
             name=f"{DOMAIN}_coordinator",
-            update_interval=timedelta(seconds=regular_scan_interval), # Use regular_scan_interval
+            update_interval=timedelta(
+                seconds=regular_scan_interval
+            ),  # Use regular_scan_interval
         )
         self.host = host
         self.serial_number = serial_number
         self.check_code = check_code
-        self.regular_scan_interval = regular_scan_interval # Stored
-        self.printing_scan_interval = printing_scan_interval # Stored
+        self.regular_scan_interval = regular_scan_interval  # Stored
+        self.printing_scan_interval = printing_scan_interval  # Stored
         self.connection_state = CONNECTION_STATE_UNKNOWN
         self.data: dict[str, Any] = (
             {}
@@ -118,10 +120,14 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 elif "bed leveling is off" in response_lower:
                     status_data[API_ATTR_BED_LEVELING_STATUS] = False
                 else:
-                    _LOGGER.debug(f"Could not determine bed leveling status from M420 response: {response[:200]}")
+                    _LOGGER.debug(
+                        f"Could not determine bed leveling status from M420 response: {response[:200]}"
+                    )
                 _LOGGER.debug(f"Parsed bed leveling data: {status_data}")
             else:
-                _LOGGER.warning(f"{action} command sent, but no parseable data in response.")
+                _LOGGER.warning(
+                    f"{action} command sent, but no parseable data in response."
+                )
         except Exception as e:
             _LOGGER.error(f"Exception during {action} TCP command: {e}", exc_info=True)
 
@@ -135,7 +141,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             API_ATTR_X_ENDSTOP_STATUS: None,
             API_ATTR_Y_ENDSTOP_STATUS: None,
             API_ATTR_Z_ENDSTOP_STATUS: None,
-            API_ATTR_FILAMENT_ENDSTOP_STATUS: None, # Initialize, will remain None if not reported
+            API_ATTR_FILAMENT_ENDSTOP_STATUS: None,  # Initialize, will remain None if not reported
         }
         action = "FETCH ENDSTOP STATUS (M119)"
         _LOGGER.debug(f"Attempting to {action}")
@@ -166,7 +172,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 # printer's build volume from M115, not a live trigger state), so a
                 # simple keyword fix isn't obviously correct without a capture taken
                 # while an endstop or the filament sensor is actually triggered.
-                lines = response.lower().split('\n')
+                lines = response.lower().split("\n")
                 for line in lines:
                     line = line.strip()
                     if "x_min:" in line:
@@ -177,12 +183,16 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                         endstop_data[API_ATTR_Z_ENDSTOP_STATUS] = "triggered" in line
                     # Adjust "filament" based on actual M119 output key for filament sensor
                     elif "filament" in line:
-                        endstop_data[API_ATTR_FILAMENT_ENDSTOP_STATUS] = "triggered" in line
+                        endstop_data[API_ATTR_FILAMENT_ENDSTOP_STATUS] = (
+                            "triggered" in line
+                        )
 
                 _LOGGER.debug(f"Parsed endstop data: {endstop_data}")
 
             else:
-                _LOGGER.warning(f"{action} command sent, but no parseable data in response.")
+                _LOGGER.warning(
+                    f"{action} command sent, but no parseable data in response."
+                )
 
         except Exception as e:
             _LOGGER.error(f"Exception during {action} TCP command: {e}", exc_info=True)
@@ -348,23 +358,37 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         # Now, based on fresh_data, decide what the *next* interval should be.
         if fresh_data:
             printer_status_detail = fresh_data.get(API_ATTR_DETAIL, {})
-            current_printer_status = printer_status_detail.get(API_ATTR_STATUS) if isinstance(printer_status_detail, dict) else None
+            current_printer_status = (
+                printer_status_detail.get(API_ATTR_STATUS)
+                if isinstance(printer_status_detail, dict)
+                else None
+            )
 
             is_printing = current_printer_status in PRINTING_STATES
 
-            desired_interval_seconds = self.printing_scan_interval if is_printing else self.regular_scan_interval
+            desired_interval_seconds = (
+                self.printing_scan_interval
+                if is_printing
+                else self.regular_scan_interval
+            )
 
             if self.update_interval.total_seconds() != desired_interval_seconds:
                 self.update_interval = timedelta(seconds=desired_interval_seconds)
-                _LOGGER.info(f"FlashForge coordinator update interval changed to {desired_interval_seconds} seconds (Status: {current_printer_status})")
+                _LOGGER.info(
+                    f"FlashForge coordinator update interval changed to {desired_interval_seconds} seconds (Status: {current_printer_status})"
+                )
             else:
-                _LOGGER.debug(f"FlashForge coordinator update interval remains {desired_interval_seconds} seconds (Status: {current_printer_status})")
+                _LOGGER.debug(
+                    f"FlashForge coordinator update interval remains {desired_interval_seconds} seconds (Status: {current_printer_status})"
+                )
         else:
             _LOGGER.warning("No fresh data from _fetch_data. Interval not changed.")
             # If fetch fails, and we were on printing interval, consider reverting to regular.
             if self.update_interval.total_seconds() == self.printing_scan_interval:
                 self.update_interval = timedelta(seconds=self.regular_scan_interval)
-                _LOGGER.info(f"Reverting to regular scan interval ({self.regular_scan_interval}s) due to data fetch failure.")
+                _LOGGER.info(
+                    f"Reverting to regular scan interval ({self.regular_scan_interval}s) due to data fetch failure."
+                )
 
         return fresh_data
 
@@ -427,12 +451,22 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         current_data["y_position"] = self.data.get("y_position") if self.data else None
         current_data["z_position"] = self.data.get("z_position") if self.data else None
         # Initialize endstop status keys
-        current_data[API_ATTR_X_ENDSTOP_STATUS] = self.data.get(API_ATTR_X_ENDSTOP_STATUS)
-        current_data[API_ATTR_Y_ENDSTOP_STATUS] = self.data.get(API_ATTR_Y_ENDSTOP_STATUS)
-        current_data[API_ATTR_Z_ENDSTOP_STATUS] = self.data.get(API_ATTR_Z_ENDSTOP_STATUS)
-        current_data[API_ATTR_FILAMENT_ENDSTOP_STATUS] = self.data.get(API_ATTR_FILAMENT_ENDSTOP_STATUS)
+        current_data[API_ATTR_X_ENDSTOP_STATUS] = self.data.get(
+            API_ATTR_X_ENDSTOP_STATUS
+        )
+        current_data[API_ATTR_Y_ENDSTOP_STATUS] = self.data.get(
+            API_ATTR_Y_ENDSTOP_STATUS
+        )
+        current_data[API_ATTR_Z_ENDSTOP_STATUS] = self.data.get(
+            API_ATTR_Z_ENDSTOP_STATUS
+        )
+        current_data[API_ATTR_FILAMENT_ENDSTOP_STATUS] = self.data.get(
+            API_ATTR_FILAMENT_ENDSTOP_STATUS
+        )
         # Initialize Bed Leveling status key
-        current_data[API_ATTR_BED_LEVELING_STATUS] = self.data.get(API_ATTR_BED_LEVELING_STATUS)
+        current_data[API_ATTR_BED_LEVELING_STATUS] = self.data.get(
+            API_ATTR_BED_LEVELING_STATUS
+        )
 
         # Step 2: Fetch TCP data only if HTTP was successful and it's not the first run for the coordinator
         # self.data will be empty on the very first run initiated by async_refresh in __init__
@@ -465,13 +499,13 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
 
     def _validate_response(self, data: dict[str, Any]) -> bool:
         """Validate the structure of the HTTP /detail response.
-        
+
         This validation is lenient to support both Pro and non-Pro models
         which may have slightly different response structures.
         """
         # First check if we have all expected fields (Pro model)
         has_all_required = all(field in data for field in REQUIRED_RESPONSE_FIELDS)
-        
+
         if not has_all_required:
             _LOGGER.debug(
                 f"Response missing some expected top-level fields: {REQUIRED_RESPONSE_FIELDS}. "
@@ -483,19 +517,19 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                     f"Missing critical 'detail' field in response. Available keys: {list(data.keys())}"
                 )
                 return False
-        
+
         # Check the detail section
         detail_data = data.get(API_ATTR_DETAIL, {})
-        
+
         if not isinstance(detail_data, dict):
             _LOGGER.warning(f"'detail' field is not a dictionary: {type(detail_data)}")
             return False
-            
+
         # Check if we have the critical detail fields
         has_all_detail_fields = all(
             field in detail_data for field in REQUIRED_DETAIL_FIELDS
         )
-        
+
         if not has_all_detail_fields:
             _LOGGER.debug(
                 f"Response missing some expected detail fields: {REQUIRED_DETAIL_FIELDS}. "
@@ -508,14 +542,16 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 )
                 return False
             # If we have status, consider it valid enough for non-Pro models
-            _LOGGER.info("Accepting response with minimal structure (non-Pro model detected)")
-        
+            _LOGGER.info(
+                "Accepting response with minimal structure (non-Pro model detected)"
+            )
+
         return True
 
     async def _send_http_command(
         self,
         endpoint: str,
-        extra_payload: Optional[Dict[str, Any]] = None, # Changed type hint
+        extra_payload: Optional[dict[str, Any]] = None,  # Changed type hint
         expect_json_response: bool = True,
     ):
         """Sends a command via HTTP POST, wrapped with auth details."""
@@ -676,15 +712,29 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         success, _ = await self._send_tcp_command(command, action)
         return success
 
-    async def move_relative(self, x: Optional[float]=None, y: Optional[float]=None, z: Optional[float]=None, feedrate: Optional[int]=None) -> bool:
+    async def move_relative(
+        self,
+        x: Optional[float] = None,
+        y: Optional[float] = None,
+        z: Optional[float] = None,
+        feedrate: Optional[int] = None,
+    ) -> bool:
         """Moves printer axes by a relative amount using G91 then G0, then restores G90."""
-        _LOGGER.info(f"Attempting relative move with offsets: x={x}, y={y}, z={z} at feedrate={feedrate}")
+        _LOGGER.info(
+            f"Attempting relative move with offsets: x={x}, y={y}, z={z} at feedrate={feedrate}"
+        )
 
-        success_g91, _ = await self._send_tcp_command("~G91\r\n", "SET RELATIVE POSITIONING (G91)")
+        success_g91, _ = await self._send_tcp_command(
+            "~G91\r\n", "SET RELATIVE POSITIONING (G91)"
+        )
         if not success_g91:
-            _LOGGER.error("Failed to set relative positioning (G91). Aborting relative move.")
+            _LOGGER.error(
+                "Failed to set relative positioning (G91). Aborting relative move."
+            )
             # Attempt to restore absolute positioning just in case, though G91 failure is problematic
-            _, _ = await self._send_tcp_command("~G90\r\n", "RESTORE ABSOLUTE POSITIONING (G90) after G91 fail")
+            _, _ = await self._send_tcp_command(
+                "~G90\r\n", "RESTORE ABSOLUTE POSITIONING (G90) after G91 fail"
+            )
             return False
 
         move_attempted = False
@@ -705,39 +755,52 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         if feedrate is not None and feedrate > 0:
             command_parts.append(f"F{feedrate}")
             action_parts_log.append(f"F:{feedrate}")
-        elif feedrate is not None: # feedrate is 0 or negative
-             _LOGGER.warning(f"Invalid feedrate for relative move: {feedrate}. Must be positive. Ignoring feedrate.")
-
+        elif feedrate is not None:  # feedrate is 0 or negative
+            _LOGGER.warning(
+                f"Invalid feedrate for relative move: {feedrate}. Must be positive. Ignoring feedrate."
+            )
 
         if len(command_parts) > 1:  # More than just "~G0"
             move_attempted = True
             move_command = " ".join(command_parts) + "\r\n"
             relative_move_action_log = f"MOVE RELATIVE ({', '.join(action_parts_log)})"
-            success_move, _ = await self._send_tcp_command(move_command, relative_move_action_log)
+            success_move, _ = await self._send_tcp_command(
+                move_command, relative_move_action_log
+            )
             if not success_move:
                 _LOGGER.error(f"Relative move command ({move_command.strip()}) failed.")
         else:
-            _LOGGER.warning("No axis offset provided for relative move. Skipping G0 command.")
+            _LOGGER.warning(
+                "No axis offset provided for relative move. Skipping G0 command."
+            )
             # No move was attempted, so success_move remains True
 
-        success_g90, _ = await self._send_tcp_command("~G90\r\n", "RESTORE ABSOLUTE POSITIONING (G90)")
+        success_g90, _ = await self._send_tcp_command(
+            "~G90\r\n", "RESTORE ABSOLUTE POSITIONING (G90)"
+        )
         if not success_g90:
-            _LOGGER.error("Critical: Failed to restore absolute positioning (G90) after relative move sequence.")
+            _LOGGER.error(
+                "Critical: Failed to restore absolute positioning (G90) after relative move sequence."
+            )
             # Even if G90 fails, the overall success depends on G91 and the move itself.
             # However, a G90 failure is a significant issue for future commands.
-            return False # G90 is critical to restore printer state for other operations
+            return (
+                False  # G90 is critical to restore printer state for other operations
+            )
 
         if move_attempted:
             return success_g91 and success_move and success_g90
-        else: # No move attempted, only G91 and G90 mattered
+        else:  # No move attempted, only G91 and G90 mattered
             return success_g91 and success_g90
 
     async def delete_file(self, file_path: str) -> bool:
         """Deletes a file from the printer's storage using M30."""
         command_file_path = file_path
-        if not (file_path.startswith(TCP_CMD_PRINT_FILE_PREFIX_ROOT) or \
-                file_path.startswith(TCP_CMD_PRINT_FILE_PREFIX_USER) or \
-                file_path.startswith("/data/")):
+        if not (
+            file_path.startswith(TCP_CMD_PRINT_FILE_PREFIX_ROOT)
+            or file_path.startswith(TCP_CMD_PRINT_FILE_PREFIX_USER)
+            or file_path.startswith("/data/")
+        ):
             command_file_path = f"{TCP_CMD_PRINT_FILE_PREFIX_USER}{file_path}"
         elif file_path.startswith("/data/"):
             command_file_path = f"0:{file_path}"
@@ -764,8 +827,12 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
     async def set_speed_percentage(self, percentage: int) -> bool:
         """Sets the printer's speed factor override (M220 S<percentage>)."""
         # Basic validation, though schema in __init__.py should also catch it.
-        if not 10 <= percentage <= 500: # Example range, adjust if printer has different limits
-            _LOGGER.error(f"Invalid speed percentage: {percentage}. Must be between 10 and 500 (example).")
+        if (
+            not 10 <= percentage <= 500
+        ):  # Example range, adjust if printer has different limits
+            _LOGGER.error(
+                f"Invalid speed percentage: {percentage}. Must be between 10 and 500 (example)."
+            )
             return False
         command = f"~M220 S{percentage}\r\n"
         action = f"SET SPEED PERCENTAGE to {percentage}%"
@@ -774,8 +841,10 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def set_flow_percentage(self, percentage: int) -> bool:
         """Sets the printer's flow rate percentage using M221."""
-        if not 50 <= percentage <= 200: # Example range
-            _LOGGER.error(f"Invalid flow percentage: {percentage}. Must be between 50 and 200.")
+        if not 50 <= percentage <= 200:  # Example range
+            _LOGGER.error(
+                f"Invalid flow percentage: {percentage}. Must be between 50 and 200."
+            )
             return False
         command = f"~M221 S{percentage}\r\n"
         action = f"SET FLOW PERCENTAGE to {percentage}%"
@@ -788,8 +857,10 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         action_detail = "ALL AXES"
         if axes and isinstance(axes, list) and len(axes) > 0:
             # Filter for valid axes and join them, e.g., "G28 XY"
-            valid_axes_to_home = "".join(ax.upper() for ax in axes if ax.upper() in ["X", "Y", "Z"])
-            if valid_axes_to_home: # Only add if there are valid axes
+            valid_axes_to_home = "".join(
+                ax.upper() for ax in axes if ax.upper() in ["X", "Y", "Z"]
+            )
+            if valid_axes_to_home:  # Only add if there are valid axes
                 command += f" {valid_axes_to_home}"
                 action_detail = f"{valid_axes_to_home} AXES"
         command += "\r\n"
@@ -811,7 +882,9 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         # M112 might not send an 'ok', printer might just halt or restart.
         # Consider if a different response_terminator or no terminator is needed.
         # For now, using default which might result in a timeout/false negative if printer halts before 'ok'.
-        success, _ = await self._send_tcp_command(command, action, response_terminator="ok\r\n")
+        success, _ = await self._send_tcp_command(
+            command, action, response_terminator="ok\r\n"
+        )
         return success
 
     async def list_files(self) -> bool:
@@ -821,7 +894,9 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.info(f"Attempting to {action}")
         success, response = await self._send_tcp_command(command, action)
         if success:
-            _LOGGER.info(f"Successfully received file list response for M20. Full response logged at DEBUG level by TCP client. Response snippet: {response[:200]}...")
+            _LOGGER.info(
+                f"Successfully received file list response for M20. Full response logged at DEBUG level by TCP client. Response snippet: {response[:200]}..."
+            )
         # For now, just log; detailed parsing can be added later.
         # _LOGGER.info(f"M20 (List Files) Response:\n{response}") # Alternative: log full response here
         return success
@@ -833,7 +908,9 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.info(f"Attempting to {action}")
         success, response = await self._send_tcp_command(command, action)
         if success:
-            _LOGGER.info(f"Successfully received firmware capabilities response for M115. Full response logged at DEBUG level by TCP client. Response snippet: {response[:200]}...")
+            _LOGGER.info(
+                f"Successfully received firmware capabilities response for M115. Full response logged at DEBUG level by TCP client. Response snippet: {response[:200]}..."
+            )
         # _LOGGER.info(f"M115 (Firmware Capabilities) Response:\n{response}")
         return success
 
@@ -841,9 +918,13 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         """Plays a beep sound using M300."""
         # Basic input validation
         if not (0 <= pitch <= 10000):  # Example range for pitch in Hz
-            _LOGGER.warning(f"Pitch {pitch} Hz is out of typical range (0-10000 Hz). Proceeding anyway.")
+            _LOGGER.warning(
+                f"Pitch {pitch} Hz is out of typical range (0-10000 Hz). Proceeding anyway."
+            )
         if not (0 <= duration <= 10000):  # Example range for duration in ms
-            _LOGGER.warning(f"Duration {duration} ms is out of typical range (0-10000 ms). Proceeding anyway.")
+            _LOGGER.warning(
+                f"Duration {duration} ms is out of typical range (0-10000 ms). Proceeding anyway."
+            )
 
         command = f"~M300 S{pitch} P{duration}\r\n"
         action = f"PLAY BEEP (Pitch: {pitch}, Duration: {duration})"
@@ -874,7 +955,9 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.info(f"Attempting to {action}")
         success, response = await self._send_tcp_command(command, action)
         if success:
-            _LOGGER.info(f"Successfully read settings from EEPROM (M501). Full response logged at DEBUG level by TCP client. Response snippet: {response[:200]}...")
+            _LOGGER.info(
+                f"Successfully read settings from EEPROM (M501). Full response logged at DEBUG level by TCP client. Response snippet: {response[:200]}..."
+            )
         # _LOGGER.info(f"M501 (Read Settings from EEPROM) Response:\n{response}")
         return success
 
@@ -883,17 +966,23 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         command = "~M502\r\n"
         action = "RESTORE FACTORY SETTINGS (M502)"
         # M502 might also have non-standard response or cause a restart.
-        success, _ = await self._send_tcp_command(command, action, response_terminator="ok\r\n")
+        success, _ = await self._send_tcp_command(
+            command, action, response_terminator="ok\r\n"
+        )
         return success
 
-    async def _send_on_tcp_stream(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, command: str) -> str:
+    async def _send_on_tcp_stream(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, command: str
+    ) -> str:
         """Sends a single bare command (no ~ prefix required by caller) on an open stream and reads the response."""
         writer.write(f"~{command}\r\n".encode("utf-8"))
         await asyncio.wait_for(writer.drain(), timeout=COORDINATOR_COMMAND_TIMEOUT)
         buf = b""
         try:
             while True:
-                chunk = await asyncio.wait_for(reader.read(1024), timeout=COORDINATOR_COMMAND_TIMEOUT)
+                chunk = await asyncio.wait_for(
+                    reader.read(1024), timeout=COORDINATOR_COMMAND_TIMEOUT
+                )
                 if not chunk:
                     break
                 buf += chunk
@@ -903,7 +992,9 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             pass
         return buf.decode("utf-8", errors="ignore").strip()
 
-    async def _open_tcp_stream(self) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    async def _open_tcp_stream(
+        self,
+    ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         """Opens a fresh TCP connection to the printer's M-code port."""
         return await asyncio.wait_for(
             asyncio.open_connection(self.host, DEFAULT_MCODE_PORT),
@@ -939,14 +1030,22 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         try:
             reader, writer = await self._open_tcp_stream()
         except Exception as e:
-            _LOGGER.error(f"Failed to open persistent TCP connection for poll-cycle fetch: {e}", exc_info=True)
+            _LOGGER.error(
+                f"Failed to open persistent TCP connection for poll-cycle fetch: {e}",
+                exc_info=True,
+            )
             return result
 
         try:
             try:
-                result["printable_files"] = await self._fetch_printable_files_list(reader, writer)
+                result["printable_files"] = await self._fetch_printable_files_list(
+                    reader, writer
+                )
             except Exception as e:
-                _LOGGER.error(f"Failed to fetch printable files list during update: {e}", exc_info=True)
+                _LOGGER.error(
+                    f"Failed to fetch printable files list during update: {e}",
+                    exc_info=True,
+                )
 
             try:
                 coords = await self._fetch_coordinates(reader, writer)
@@ -955,17 +1054,24 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                     result["y_position"] = coords.get("y")
                     result["z_position"] = coords.get("z")
             except Exception as e:
-                _LOGGER.error(f"Failed to fetch coordinates during update: {e}", exc_info=True)
+                _LOGGER.error(
+                    f"Failed to fetch coordinates during update: {e}", exc_info=True
+                )
 
             try:
                 result.update(await self._fetch_endstop_status(reader, writer))
             except Exception as e:
-                _LOGGER.error(f"Failed to fetch endstop status during update: {e}", exc_info=True)
+                _LOGGER.error(
+                    f"Failed to fetch endstop status during update: {e}", exc_info=True
+                )
 
             try:
                 result.update(await self._fetch_bed_leveling_status(reader, writer))
             except Exception as e:
-                _LOGGER.error(f"Failed to fetch bed leveling status during update: {e}", exc_info=True)
+                _LOGGER.error(
+                    f"Failed to fetch bed leveling status during update: {e}",
+                    exc_info=True,
+                )
         finally:
             await self._close_tcp_stream(writer)
 
@@ -1014,10 +1120,19 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             results = []
             reader, writer = await self._open_tcp_stream()
             try:
-                results.append(("M601 S1", await self._send_on_tcp_stream(reader, writer, "M601 S1")))
+                results.append(
+                    (
+                        "M601 S1",
+                        await self._send_on_tcp_stream(reader, writer, "M601 S1"),
+                    )
+                )
                 for cmd in probe_commands:
-                    results.append((cmd, await self._send_on_tcp_stream(reader, writer, cmd)))
-                results.append(("M602", await self._send_on_tcp_stream(reader, writer, "M602")))
+                    results.append(
+                        (cmd, await self._send_on_tcp_stream(reader, writer, cmd))
+                    )
+                results.append(
+                    ("M602", await self._send_on_tcp_stream(reader, writer, "M602"))
+                )
             finally:
                 await self._close_tcp_stream(writer)
             return results

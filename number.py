@@ -1,4 +1,5 @@
 """Number platform for Flashforge Adventurer 5M PRO integration."""
+
 import logging
 from typing import List, Optional
 
@@ -6,7 +7,10 @@ from homeassistant.components.number import NumberEntity, NumberDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.const import UnitOfTemperature, PERCENTAGE # PERCENTAGE might not be used for fan
+from homeassistant.const import (
+    UnitOfTemperature,
+    PERCENTAGE,
+)  # PERCENTAGE might not be used for fan
 
 from .const import (
     DOMAIN,
@@ -18,14 +22,17 @@ from .const import (
     ATTR_TEMPERATURE,
     ATTR_SPEED,
     # API attribute keys for current values (targets for these number entities)
-    API_ATTR_DETAIL, # Parent key for detail object
-    API_ATTR_LEFT_TARGET_TEMP, # Assuming left extruder is primary
+    API_ATTR_DETAIL,  # Parent key for detail object
+    API_ATTR_LEFT_TARGET_TEMP,  # Assuming left extruder is primary
     API_ATTR_PLAT_TARGET_TEMP,
     # API_ATTR_COOLING_FAN_SPEED, # This is RPM, not 0-255 setpoint
     # Min/Max constants
-    MIN_EXTRUDER_TEMP, MAX_EXTRUDER_TEMP,
-    MIN_BED_TEMP, MAX_BED_TEMP,
-    MIN_FAN_SPEED, MAX_FAN_SPEED,
+    MIN_EXTRUDER_TEMP,
+    MAX_EXTRUDER_TEMP,
+    MIN_BED_TEMP,
+    MAX_BED_TEMP,
+    MIN_FAN_SPEED,
+    MAX_FAN_SPEED,
 )
 from .coordinator import FlashforgeDataUpdateCoordinator
 from .entity import FlashforgeEntity
@@ -58,12 +65,16 @@ class FlashforgeExtruderTemperatureNumber(FlashforgeEntity, NumberEntity):
     _attr_native_min_value = MIN_EXTRUDER_TEMP
     _attr_native_max_value = MAX_EXTRUDER_TEMP
     _attr_native_step = 1.0
-    _attr_icon = "mdi:thermometer-lines" # Or mdi:printer-3d-nozzle-outline
+    _attr_icon = "mdi:thermometer-lines"  # Or mdi:printer-3d-nozzle-outline
 
     def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
         """Initialize the number entity."""
-        super().__init__(coordinator, name_suffix="Extruder Target Temperature", unique_id_key="extruder_target_temp")
-        self._update_internal_state() # Initial update
+        super().__init__(
+            coordinator,
+            name_suffix="Extruder Target Temperature",
+            unique_id_key="extruder_target_temp",
+        )
+        self._update_internal_state()  # Initial update
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -76,7 +87,7 @@ class FlashforgeExtruderTemperatureNumber(FlashforgeEntity, NumberEntity):
         if self.coordinator.data and API_ATTR_DETAIL in self.coordinator.data:
             detail = self.coordinator.data[API_ATTR_DETAIL]
             if isinstance(detail, dict):
-                 self._attr_native_value = detail.get(API_ATTR_LEFT_TARGET_TEMP)
+                self._attr_native_value = detail.get(API_ATTR_LEFT_TARGET_TEMP)
             else:
                 self._attr_native_value = None
         else:
@@ -103,11 +114,15 @@ class FlashforgeBedTemperatureNumber(FlashforgeEntity, NumberEntity):
     _attr_native_min_value = MIN_BED_TEMP
     _attr_native_max_value = MAX_BED_TEMP
     _attr_native_step = 1.0
-    _attr_icon = "mdi:thermometer-lines" # Or mdi:texture
+    _attr_icon = "mdi:thermometer-lines"  # Or mdi:texture
 
     def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
         """Initialize the number entity."""
-        super().__init__(coordinator, name_suffix="Bed Target Temperature", unique_id_key="bed_target_temp")
+        super().__init__(
+            coordinator,
+            name_suffix="Bed Target Temperature",
+            unique_id_key="bed_target_temp",
+        )
         self._update_internal_state()
 
     @callback
@@ -141,10 +156,10 @@ class FlashforgeBedTemperatureNumber(FlashforgeEntity, NumberEntity):
 class FlashforgeFanSpeedNumber(FlashforgeEntity, NumberEntity):
     """Representation of a Number entity for fan speed (0-255)."""
 
-    _attr_native_unit_of_measurement = None # Raw 0-255 value
+    _attr_native_unit_of_measurement = None  # Raw 0-255 value
     _attr_native_min_value = MIN_FAN_SPEED
     _attr_native_max_value = MAX_FAN_SPEED
-    _attr_native_step = 1.0 # Or 5.0 for larger steps in UI
+    _attr_native_step = 1.0  # Or 5.0 for larger steps in UI
     _attr_icon = "mdi:fan"
     # Since we cannot reliably read the current M106 setpoint from the printer's API,
     # we might have to assume state or just make it a "write-only" like control.
@@ -154,11 +169,15 @@ class FlashforgeFanSpeedNumber(FlashforgeEntity, NumberEntity):
 
     def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
         """Initialize the number entity."""
-        super().__init__(coordinator, name_suffix="Cooling Fan Speed", unique_id_key="cooling_fan_speed_setpoint")
+        super().__init__(
+            coordinator,
+            name_suffix="Cooling Fan Speed",
+            unique_id_key="cooling_fan_speed_setpoint",
+        )
         # Initialize to a default or None if we don't know the last set state.
         # If we want it to remember last HA-set state across restarts, it needs persistence,
         # or we just initialize to a sensible default (e.g. 0 for off).
-        self._attr_native_value: Optional[float] = None # Or 0.0
+        self._attr_native_value: Optional[float] = None  # Or 0.0
 
     @callback
     def _handle_coordinator_update(self) -> None:

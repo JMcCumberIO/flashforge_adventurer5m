@@ -8,7 +8,7 @@ DOMAIN = "flashforge_adventurer5m"
 
 # Default settings
 DEFAULT_SCAN_INTERVAL = 10  # seconds
-DEFAULT_PRINTING_SCAN_INTERVAL = 2 # seconds
+DEFAULT_PRINTING_SCAN_INTERVAL = 2  # seconds
 DEFAULT_PORT = 8898
 DEFAULT_MCODE_PORT = 8899
 DEFAULT_HOST = "printer.local"
@@ -123,7 +123,7 @@ API_ATTR_BED_LEVELING_STATUS = "bed_leveling_status"
 NAME_BED_LEVELING = "Bed Leveling Active"
 
 # Bed Leveling Sensor Icon
-ICON_BED_LEVELING = "mdi:checkerboard" # Or mdi:format-list-bulleted-type
+ICON_BED_LEVELING = "mdi:checkerboard"  # Or mdi:format-list-bulleted-type
 
 # Service Name Constants
 SERVICE_MOVE_RELATIVE = "move_relative"

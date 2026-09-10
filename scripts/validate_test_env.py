@@ -1,6 +1,6 @@
 """Validate that required test environment dependencies are available."""
-import sys
 
+import sys
 
 REQUIRED = ["black", "flake8", "pytest", "aiohttp", "yaml", "voluptuous"]
 
