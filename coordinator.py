@@ -26,6 +26,7 @@ from .const import (
     MAX_RETRIES,
     RETRY_DELAY,
     BACKOFF_FACTOR,
+    TCP_COMMAND_INTERVAL,
     CONNECTION_STATE_UNKNOWN,
     CONNECTION_STATE_CONNECTED,
     CONNECTION_STATE_DISCONNECTED,
@@ -474,6 +475,8 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 )
                 current_data["printable_files"] = self.data.get("printable_files", [])
 
+            await asyncio.sleep(TCP_COMMAND_INTERVAL)
+
             try:
                 coords = await self._fetch_coordinates()
                 if coords:
@@ -492,11 +495,15 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 current_data["y_position"] = self.data.get("y_position")
                 current_data["z_position"] = self.data.get("z_position")
 
+            await asyncio.sleep(TCP_COMMAND_INTERVAL)
+
             try:
                 endstop_status = await self._fetch_endstop_status()
                 current_data.update(endstop_status)
             except Exception as e:
                 _LOGGER.error(f"Failed to fetch endstop status during update: {e}", exc_info=True)
+
+            await asyncio.sleep(TCP_COMMAND_INTERVAL)
 
             try:
                 bed_level_status = await self._fetch_bed_leveling_status()

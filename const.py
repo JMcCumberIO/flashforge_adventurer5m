@@ -26,6 +26,15 @@ MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
 BACKOFF_FACTOR = 1.5
 
+# Delay between successive M-code TCP commands within one poll cycle.
+# The printer's embedded TCP stack (a single-connection lwIP-style stack,
+# not a real multi-client server) can't reliably accept a fresh connection
+# immediately after closing the previous one - firing all four TCP calls
+# back-to-back with no gap intermittently gets "connection closed/reset by
+# peer" or a timeout on the 2nd-4th command of a cycle, while the first
+# almost always succeeds since it's had the full scan_interval to settle.
+TCP_COMMAND_INTERVAL = 0.75  # seconds
+
 # API endpoints
 ENDPOINT_DETAIL = "/detail"
 # ENDPOINT_PAUSE = "/pause" # Removed, functionality moved to TCP M-code
