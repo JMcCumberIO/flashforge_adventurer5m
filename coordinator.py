@@ -26,7 +26,6 @@ from .const import (
     MAX_RETRIES,
     RETRY_DELAY,
     BACKOFF_FACTOR,
-    TCP_COMMAND_INTERVAL,
     CONNECTION_STATE_UNKNOWN,
     CONNECTION_STATE_CONNECTED,
     CONNECTION_STATE_DISCONNECTED,
@@ -101,18 +100,17 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error(f"Exception during {action} TCP command: {e}", exc_info=True)
             return False, str(e)
 
-    async def _fetch_bed_leveling_status(self) -> dict:
-        """Fetches and parses bed leveling status from M420 command."""
+    async def _fetch_bed_leveling_status(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> dict:
+        """Fetches and parses bed leveling status from M420, over an already-open stream."""
         status_data = {API_ATTR_BED_LEVELING_STATUS: None}
-        command = "~M420\r\n"
         action = "FETCH BED LEVELING STATUS (M420)"
-
-        tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
-        _LOGGER.debug(f"Attempting to {action} using TCP command: {command.strip()}")
+        _LOGGER.debug(f"Attempting to {action}")
 
         try:
-            success, response = await tcp_client.send_command(command, response_terminator="ok\r\n")
-            if success and response:
+            response = await self._send_on_tcp_stream(reader, writer, "M420")
+            if response:
                 _LOGGER.debug(f"Raw response for {action}: {response}")
                 response_lower = response.lower()
                 if "bed leveling is on" in response_lower:
@@ -122,20 +120,17 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 else:
                     _LOGGER.debug(f"Could not determine bed leveling status from M420 response: {response[:200]}")
                 _LOGGER.debug(f"Parsed bed leveling data: {status_data}")
-            elif success:
-                _LOGGER.warning(f"{action} command sent, but no parseable data in response: {response}")
             else:
-                _LOGGER.error(f"Failed to send {action} command. Response/Error: {response}")
+                _LOGGER.warning(f"{action} command sent, but no parseable data in response.")
         except Exception as e:
             _LOGGER.error(f"Exception during {action} TCP command: {e}", exc_info=True)
 
-        if hasattr(tcp_client, '_writer') and tcp_client._writer and not tcp_client._writer.is_closing():
-            tcp_client.close()
-
         return status_data
 
-    async def _fetch_endstop_status(self) -> dict:
-        """Fetches and parses endstop status from M119 command."""
+    async def _fetch_endstop_status(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> dict:
+        """Fetches and parses endstop status from M119, over an already-open stream."""
         endstop_data = {
             API_ATTR_X_ENDSTOP_STATUS: None,
             API_ATTR_Y_ENDSTOP_STATUS: None,
@@ -143,14 +138,11 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             API_ATTR_FILAMENT_ENDSTOP_STATUS: None, # Initialize, will remain None if not reported
         }
         action = "FETCH ENDSTOP STATUS (M119)"
-        command = "~M119\r\n"
-
-        tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
-        _LOGGER.debug(f"Attempting to {action} using TCP command: {command.strip()}")
+        _LOGGER.debug(f"Attempting to {action}")
 
         try:
-            success, response = await tcp_client.send_command(command, response_terminator="ok\r\n")
-            if success and response:
+            response = await self._send_on_tcp_stream(reader, writer, "M119")
+            if response:
                 _LOGGER.debug(f"Raw response for {action}: {response}")
                 # Marlin typically responds with one line per endstop, e.g.:
                 # x_min:open
@@ -189,43 +181,35 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
 
                 _LOGGER.debug(f"Parsed endstop data: {endstop_data}")
 
-            elif success:
-                _LOGGER.warning(f"{action} command sent, but no parseable data in response: {response}")
             else:
-                _LOGGER.error(f"Failed to send {action} command. Response/Error: {response}")
+                _LOGGER.warning(f"{action} command sent, but no parseable data in response.")
 
         except Exception as e:
             _LOGGER.error(f"Exception during {action} TCP command: {e}", exc_info=True)
 
-        # Ensure client is closed if send_command itself had an issue before its own finally
-        # This check is a bit defensive as send_command should always close.
-        if hasattr(tcp_client, '_writer') and tcp_client._writer and not tcp_client._writer.is_closing():
-            tcp_client.close()
-
         return endstop_data
 
-    async def _fetch_printable_files_list(self) -> list[str]:
+    async def _fetch_printable_files_list(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> list[str]:
         """
-        Fetches the list of printable files using TCP M-code ~M661.
+        Fetches the list of printable files using TCP M-code ~M661, over an
+        already-open stream.
         Expected M661 response format (observed):
         CMD M661 Received.\r\nok\r\n  (optional prefix, may vary or be absent)
         DD\x00\x00\x00\x1b::\xa3\xa3\x00\x00\x00/data/user/filament_config/ASA.txt::\x00\x00\x00/data/user/filament_config/PETG.txt...
         (The "DD..." part might be specific to some firmware/printer responses, separator seems to be "::\x00\x00\x00")
         The actual file paths start with /data/
         """
-        tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
-        command = "~M661\r\n"
         action = "FETCH PRINTABLE FILES"
         files_list = []
 
-        _LOGGER.debug(f"Attempting to {action} using TCP command: {command.strip()}")
+        _LOGGER.debug(f"Attempting to {action}")
 
         try:
-            success, response = await tcp_client.send_command(
-                command, response_terminator="ok\r\n"
-            )
+            response = await self._send_on_tcp_stream(reader, writer, "M661")
 
-            if success and response:
+            if response:
                 _LOGGER.debug(f"Raw response for {action}: {response}")
 
                 payload_str = response
@@ -297,15 +281,9 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                         payload_str[:200] + "...",
                     )
 
-            elif (
-                success
-            ):  # Command sent, but response might be empty or not what we expected
+            else:  # Command sent, but response might be empty or not what we expected
                 _LOGGER.warning(
-                    f"{action} command sent, but no valid file list data in response: '{response[:200]}...'"
-                )
-            else:
-                _LOGGER.error(
-                    f"Failed to send {action} command. Response/Error: {response}"
+                    f"{action} command sent, but no valid file list data in response."
                 )
 
             return files_list
@@ -313,21 +291,20 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error(f"Exception during {action} TCP command: {e}", exc_info=True)
             return []
 
-    async def _fetch_coordinates(self) -> Optional[dict[str, float]]:
-        """Fetches and parses the printer's X,Y,Z coordinates using M-code ~M114."""
-        tcp_client = FlashforgeTCPClient(self.host, DEFAULT_MCODE_PORT)
-        command = "~M114\r\n"
+    async def _fetch_coordinates(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> Optional[dict[str, float]]:
+        """Fetches and parses the printer's X,Y,Z coordinates using M-code
+        ~M114, over an already-open stream."""
         action = "FETCH COORDINATES"
         coordinates = {}
         # conversion_factor = 2.54 # Removed, assuming M114 reports in mm
 
-        _LOGGER.debug(f"Attempting to {action} using TCP command: {command.strip()}")
+        _LOGGER.debug(f"Attempting to {action}")
 
         try:
-            success, response = await tcp_client.send_command(
-                command, response_terminator="ok\r\n"
-            )
-            if success and response:
+            response = await self._send_on_tcp_stream(reader, writer, "M114")
+            if response:
                 _LOGGER.debug(f"Raw response for {action}: {response}")
 
                 match_x = re.search(r"X:([+-]?\d+\.?\d*)", response)
@@ -350,9 +327,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                     )
                     return None
             else:
-                _LOGGER.error(
-                    f"Failed to send {action} command. Response/Error: {response}"
-                )
+                _LOGGER.error(f"{action} command sent, but no response received.")
                 return None
         except Exception as e:
             _LOGGER.error(f"Exception during {action} TCP command: {e}", exc_info=True)
@@ -465,51 +440,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 "Attempting to fetch TCP data (files, coordinates, endstops, bed leveling) on a subsequent update."
             )
-            try:
-                files_list = await self._fetch_printable_files_list()
-                current_data["printable_files"] = files_list
-            except Exception as e:
-                _LOGGER.error(
-                    f"Failed to fetch printable files list during update: {e}",
-                    exc_info=True,
-                )
-                current_data["printable_files"] = self.data.get("printable_files", [])
-
-            await asyncio.sleep(TCP_COMMAND_INTERVAL)
-
-            try:
-                coords = await self._fetch_coordinates()
-                if coords:
-                    current_data["x_position"] = coords.get("x")
-                    current_data["y_position"] = coords.get("y")
-                    current_data["z_position"] = coords.get("z")
-                else:
-                    current_data["x_position"] = self.data.get("x_position")
-                    current_data["y_position"] = self.data.get("y_position")
-                    current_data["z_position"] = self.data.get("z_position")
-            except Exception as e:
-                _LOGGER.error(
-                    f"Failed to fetch coordinates during update: {e}", exc_info=True
-                )
-                current_data["x_position"] = self.data.get("x_position")
-                current_data["y_position"] = self.data.get("y_position")
-                current_data["z_position"] = self.data.get("z_position")
-
-            await asyncio.sleep(TCP_COMMAND_INTERVAL)
-
-            try:
-                endstop_status = await self._fetch_endstop_status()
-                current_data.update(endstop_status)
-            except Exception as e:
-                _LOGGER.error(f"Failed to fetch endstop status during update: {e}", exc_info=True)
-
-            await asyncio.sleep(TCP_COMMAND_INTERVAL)
-
-            try:
-                bed_level_status = await self._fetch_bed_leveling_status()
-                current_data.update(bed_level_status)
-            except Exception as e:
-                _LOGGER.error(f"Failed to fetch bed leveling status during update: {e}", exc_info=True)
+            current_data.update(await self._fetch_tcp_poll_data())
 
         elif http_fetch_successful and not self.data:
             _LOGGER.debug(
@@ -955,7 +886,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         success, _ = await self._send_tcp_command(command, action, response_terminator="ok\r\n")
         return success
 
-    async def _probe_send(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, command: str) -> str:
+    async def _send_on_tcp_stream(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, command: str) -> str:
         """Sends a single bare command (no ~ prefix required by caller) on an open stream and reads the response."""
         writer.write(f"~{command}\r\n".encode("utf-8"))
         await asyncio.wait_for(writer.drain(), timeout=COORDINATOR_COMMAND_TIMEOUT)
@@ -972,21 +903,73 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             pass
         return buf.decode("utf-8", errors="ignore").strip()
 
-    async def _probe_open_stream(self) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
-        """Opens a fresh TCP connection to the printer's M-code port for probing."""
+    async def _open_tcp_stream(self) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        """Opens a fresh TCP connection to the printer's M-code port."""
         return await asyncio.wait_for(
             asyncio.open_connection(self.host, DEFAULT_MCODE_PORT),
             timeout=COORDINATOR_COMMAND_TIMEOUT,
         )
 
     @staticmethod
-    async def _probe_close_stream(writer: asyncio.StreamWriter) -> None:
-        """Closes a probe stream, swallowing errors (mirrors FlashforgeTCPClient.close)."""
+    async def _close_tcp_stream(writer: asyncio.StreamWriter) -> None:
+        """Closes a TCP stream, swallowing errors (mirrors FlashforgeTCPClient.close)."""
         try:
             writer.close()
             await writer.wait_closed()
-        except Exception as e:  # noqa: BLE001 - diagnostic cleanup, never fatal
-            _LOGGER.debug(f"Error closing probe connection: {e}")
+        except Exception as e:  # noqa: BLE001 - cleanup path, never fatal
+            _LOGGER.debug(f"Error closing TCP stream: {e}")
+
+    async def _fetch_tcp_poll_data(self) -> dict[str, Any]:
+        """Fetches files, coordinates, endstop status, and bed leveling status
+        for one poll cycle, sending all four M-codes over a single persistent
+        TCP connection.
+
+        The printer's embedded TCP stack doesn't reliably accept a fresh
+        connection immediately after the previous one closes; connecting once
+        per command, four times back-to-back, intermittently produced
+        "connection closed/reset by peer" errors on the 2nd-4th command.
+        Sequential commands over one already-open connection don't hit this
+        (confirmed empirically -- see test_m601_control_session's pattern_b,
+        which runs several sequential commands over one connection without
+        issue), so this issues all four commands on one connection instead of
+        adding delays between separate connect/close cycles.
+        """
+        result: dict[str, Any] = {}
+
+        try:
+            reader, writer = await self._open_tcp_stream()
+        except Exception as e:
+            _LOGGER.error(f"Failed to open persistent TCP connection for poll-cycle fetch: {e}", exc_info=True)
+            return result
+
+        try:
+            try:
+                result["printable_files"] = await self._fetch_printable_files_list(reader, writer)
+            except Exception as e:
+                _LOGGER.error(f"Failed to fetch printable files list during update: {e}", exc_info=True)
+
+            try:
+                coords = await self._fetch_coordinates(reader, writer)
+                if coords:
+                    result["x_position"] = coords.get("x")
+                    result["y_position"] = coords.get("y")
+                    result["z_position"] = coords.get("z")
+            except Exception as e:
+                _LOGGER.error(f"Failed to fetch coordinates during update: {e}", exc_info=True)
+
+            try:
+                result.update(await self._fetch_endstop_status(reader, writer))
+            except Exception as e:
+                _LOGGER.error(f"Failed to fetch endstop status during update: {e}", exc_info=True)
+
+            try:
+                result.update(await self._fetch_bed_leveling_status(reader, writer))
+            except Exception as e:
+                _LOGGER.error(f"Failed to fetch bed leveling status during update: {e}", exc_info=True)
+        finally:
+            await self._close_tcp_stream(writer)
+
+        return result
 
     async def test_m601_control_session(self) -> dict[str, Any]:
         """Diagnostic probe for the M601/M602 TCP control-session handshake.
@@ -1018,37 +1001,37 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             """Fresh connection per command, no handshake (today's actual behavior)."""
             results = []
             for cmd in probe_commands:
-                reader, writer = await self._probe_open_stream()
+                reader, writer = await self._open_tcp_stream()
                 try:
-                    resp = await self._probe_send(reader, writer, cmd)
+                    resp = await self._send_on_tcp_stream(reader, writer, cmd)
                 finally:
-                    await self._probe_close_stream(writer)
+                    await self._close_tcp_stream(writer)
                 results.append((cmd, resp))
             return results
 
         async def pattern_b() -> list[tuple[str, str]]:
             """One persistent connection: M601 S1 once, then commands, then M602."""
             results = []
-            reader, writer = await self._probe_open_stream()
+            reader, writer = await self._open_tcp_stream()
             try:
-                results.append(("M601 S1", await self._probe_send(reader, writer, "M601 S1")))
+                results.append(("M601 S1", await self._send_on_tcp_stream(reader, writer, "M601 S1")))
                 for cmd in probe_commands:
-                    results.append((cmd, await self._probe_send(reader, writer, cmd)))
-                results.append(("M602", await self._probe_send(reader, writer, "M602")))
+                    results.append((cmd, await self._send_on_tcp_stream(reader, writer, cmd)))
+                results.append(("M602", await self._send_on_tcp_stream(reader, writer, "M602")))
             finally:
-                await self._probe_close_stream(writer)
+                await self._close_tcp_stream(writer)
             return results
 
         async def pattern_c() -> list[tuple[str, str]]:
             """Fresh connection per command, M601 S1 sent first on each connection."""
             results = []
             for cmd in probe_commands:
-                reader, writer = await self._probe_open_stream()
+                reader, writer = await self._open_tcp_stream()
                 try:
-                    await self._probe_send(reader, writer, "M601 S1")
-                    resp = await self._probe_send(reader, writer, cmd)
+                    await self._send_on_tcp_stream(reader, writer, "M601 S1")
+                    resp = await self._send_on_tcp_stream(reader, writer, cmd)
                 finally:
-                    await self._probe_close_stream(writer)
+                    await self._close_tcp_stream(writer)
                 results.append((cmd, resp))
             return results
 
