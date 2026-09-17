@@ -67,14 +67,25 @@ class FlashforgePrintFileSelect(FlashforgeEntity, SelectEntity):
             if current_status in PRINTING_STATES and current_printing_file:
                 # The API might return a full path for printFileName, or just the name.
                 # We need to ensure it matches an option in self._attr_options.
-                # For now, assume it's a direct match or can be found.
-                # A more robust solution might involve normalizing paths if they differ.
-                if current_printing_file in self._attr_options:
+                #
+                # If a TypeSafe API key is configured, the coordinator already
+                # resolved this (see _resolve_current_print_file) using a
+                # semantic match instead of a suffix heuristic -- prefer that
+                # when present. It's None when unconfigured, when there's no
+                # active print, or when the judgment itself found no match,
+                # so the original heuristic below still runs as a fallback.
+                resolved = self.coordinator.data.get("resolved_current_print_file")
+                if resolved and resolved in self._attr_options:
+                    self._attr_current_option = resolved
+                elif current_printing_file in self._attr_options:
                     self._attr_current_option = current_printing_file
                 else:
-                    # If the currently printing file is not in the list (e.g., started outside HA),
-                    # or if path formats differ, we might not be able to select it.
-                    # Check if any option is a suffix of current_printing_file or vice-versa for basic matching.
+                    # Legacy fallback: check if any option is a suffix of
+                    # current_printing_file or vice-versa for basic matching.
+                    # Known to be imprecise -- e.g. it can match "Snowflake.gcode"
+                    # against a candidate "Snowflakex3.gcode" that shares a
+                    # prefix -- kept only as a last resort when TypeSafe isn't
+                    # configured.
                     found_match = False
                     for option_path in self._attr_options:
                         if current_printing_file.endswith(option_path) or option_path.endswith(current_printing_file):

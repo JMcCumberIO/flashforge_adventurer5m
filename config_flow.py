@@ -29,6 +29,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_PRINTING_SCAN_INTERVAL,
     CONF_PRINTING_SCAN_INTERVAL,
+    CONF_TYPESAFE_API_KEY,
     DEFAULT_PORT,
     DEFAULT_HOST,
     TIMEOUT_CONNECTION_TEST,
@@ -93,6 +94,9 @@ class FlashforgeOptionsFlow(config_entries.OptionsFlow):
             CONF_PRINTING_SCAN_INTERVAL,
             DEFAULT_PRINTING_SCAN_INTERVAL
         )
+        current_typesafe_api_key = self.config_entry.options.get(
+            CONF_TYPESAFE_API_KEY, ""
+        )
 
         # Build the options schema
         options_schema = vol.Schema(
@@ -103,6 +107,13 @@ class FlashforgeOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_PRINTING_SCAN_INTERVAL, default=current_printing_scan_interval
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=15)),
+                # Optional and experimental: enables TypeSafe-backed judgments
+                # for endstop status and print-file matching instead of the
+                # built-in keyword/heuristic parsing. Leave blank to disable;
+                # everything works exactly as before without this set.
+                vol.Optional(
+                    CONF_TYPESAFE_API_KEY, default=current_typesafe_api_key
+                ): str,
             }
         )
 

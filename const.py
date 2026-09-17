@@ -15,6 +15,12 @@ DEFAULT_HOST = "printer.local"
 
 # Configuration keys
 CONF_PRINTING_SCAN_INTERVAL = "printing_scan_interval"
+# Optional: enables TypeSafe-backed semantic judgments in place of brittle
+# keyword parsing (endstop status) and heuristic matching (print-file
+# selection). Empty/unset means "not configured" -- every call site falls
+# back to the original deterministic behavior untouched. See
+# typesafe_judgments.py.
+CONF_TYPESAFE_API_KEY = "typesafe_api_key"
 
 # Timeout settings (in seconds)
 TIMEOUT_API_CALL = 10
