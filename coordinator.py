@@ -44,8 +44,10 @@ from .const import (
     API_ATTR_Z_ENDSTOP_STATUS,
     API_ATTR_FILAMENT_ENDSTOP_STATUS,
     API_ATTR_BED_LEVELING_STATUS,
+    API_ATTR_PRINT_FILE_NAME,
 )
 from .flashforge_tcp import FlashforgeTCPClient
+from .typesafe_judgments import judge_current_print_file, judge_endstop_status
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +61,7 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         check_code: str,
         regular_scan_interval: int = DEFAULT_SCAN_INTERVAL, # Renamed
         printing_scan_interval: int = DEFAULT_PRINTING_SCAN_INTERVAL, # Added
+        typesafe_api_key: Optional[str] = None,
     ):
         super().__init__(
             hass,
@@ -71,6 +74,11 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
         self.check_code = check_code
         self.regular_scan_interval = regular_scan_interval # Stored
         self.printing_scan_interval = printing_scan_interval # Stored
+        # Optional: enables TypeSafe-backed semantic judgments (endstop status,
+        # print-file matching) in place of brittle/incomplete keyword parsing.
+        # None means "not configured" -- every call site falls back to the
+        # original deterministic parsing untouched.
+        self.typesafe_api_key = typesafe_api_key
         self.connection_state = CONNECTION_STATE_UNKNOWN
         self.data: dict[str, Any] = (
             {}
@@ -144,28 +152,36 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             response = await self._send_on_tcp_stream(reader, writer, "M119")
             if response:
                 _LOGGER.debug(f"Raw response for {action}: {response}")
-                # Marlin typically responds with one line per endstop, e.g.:
-                # x_min:open
-                # y_min:open
-                # z_min:TRIGGERED
-                # filament:open (or some other key for filament sensor)
-                #
+
                 # KNOWN GAP (see issue tracker): the Adventurer 5M / 5M Pro's actual
-                # M119 response does not use this format at all. A real capture
-                # (firmware v3.2.7) looks like:
+                # M119 response is free-text and undocumented -- it doesn't use
+                # Marlin's "x_min:open" format at all. A real capture (firmware
+                # v3.2.7) looks like:
                 #   Endstop: X-max: 110 Y-max: 110 Z-min: 0
                 #   MachineStatus: READY
                 #   MoveMode: READY
                 #   Status: S:1 L:0 J:0 F:0
                 #   LED: 1
                 #   CurrentFile:
-                # None of "x_min:"/"y_min:"/"z_min:"/"filament" appear in it, so the
-                # parsing below never matches and these four values stay None on
-                # every poll -- not a crash, just no signal. The X-max/Y-max/Z-min
-                # numbers above also look like static travel limits (they track the
-                # printer's build volume from M115, not a live trigger state), so a
-                # simple keyword fix isn't obviously correct without a capture taken
-                # while an endstop or the filament sensor is actually triggered.
+                # The exact wording used when an endstop or the filament sensor
+                # is actually triggered has never been captured, so a keyword
+                # parser can't be verified correct either way.
+                #
+                # If a TypeSafe API key is configured, ask a semantic judgment
+                # instead of guessing a keyword: it can reason about whatever
+                # text is actually present rather than requiring an exact,
+                # never-captured trigger phrase. Falls through to the legacy
+                # keyword parser below on any failure or when unconfigured, so
+                # this is purely additive.
+                typesafe_result = await judge_endstop_status(self.typesafe_api_key, response)
+                if typesafe_result is not None:
+                    endstop_data[API_ATTR_X_ENDSTOP_STATUS] = typesafe_result["x"]
+                    endstop_data[API_ATTR_Y_ENDSTOP_STATUS] = typesafe_result["y"]
+                    endstop_data[API_ATTR_Z_ENDSTOP_STATUS] = typesafe_result["z"]
+                    endstop_data[API_ATTR_FILAMENT_ENDSTOP_STATUS] = typesafe_result["filament"]
+                    _LOGGER.debug(f"Parsed endstop data (TypeSafe judgment): {endstop_data}")
+                    return endstop_data
+
                 lines = response.lower().split('\n')
                 for line in lines:
                     line = line.strip()
@@ -441,6 +457,9 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
                 "Attempting to fetch TCP data (files, coordinates, endstops, bed leveling) on a subsequent update."
             )
             current_data.update(await self._fetch_tcp_poll_data())
+            current_data["resolved_current_print_file"] = await self._resolve_current_print_file(
+                current_data
+            )
 
         elif http_fetch_successful and not self.data:
             _LOGGER.debug(
@@ -970,6 +989,41 @@ class FlashforgeDataUpdateCoordinator(DataUpdateCoordinator):
             await self._close_tcp_stream(writer)
 
         return result
+
+    async def _resolve_current_print_file(self, current_data: dict[str, Any]) -> Optional[str]:
+        """Match the printer's self-reported "currently printing" filename
+        against the known list of printable files.
+
+        select.py previously did this itself with a bidirectional
+        endswith() check, which is a real placeholder (see its own comment:
+        "For now, assume it's a direct match or can be found") -- it can
+        false-match a filename that happens to be a suffix of an unrelated
+        one, and can miss genuine matches that differ in path formatting.
+        This is a fuzzy string-matching problem, not an exact-lookup one,
+        so it's done here with a TypeSafe Choice judgment when configured,
+        with select.py falling back to the original heuristic when this
+        returns None (unconfigured, no active print, or no fresh match).
+        """
+        if not self.typesafe_api_key:
+            return None
+
+        detail_data = current_data.get(API_ATTR_DETAIL, {})
+        reported_filename = detail_data.get(API_ATTR_PRINT_FILE_NAME)
+        candidate_paths = current_data.get("printable_files") or []
+
+        if not reported_filename or not candidate_paths:
+            return None
+
+        if reported_filename in candidate_paths:
+            return reported_filename  # Exact match already, no judgment needed
+
+        try:
+            return await judge_current_print_file(
+                self.typesafe_api_key, reported_filename, candidate_paths
+            )
+        except Exception as e:
+            _LOGGER.warning(f"TypeSafe file-match judgment failed: {e}", exc_info=True)
+            return None
 
     async def test_m601_control_session(self) -> dict[str, Any]:
         """Diagnostic probe for the M601/M602 TCP control-session handshake.

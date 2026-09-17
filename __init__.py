@@ -9,6 +9,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     CONF_PRINTING_SCAN_INTERVAL,
     DEFAULT_PRINTING_SCAN_INTERVAL,
+    CONF_TYPESAFE_API_KEY,
     SERVICE_MOVE_RELATIVE,
 )
 from .coordinator import FlashforgeDataUpdateCoordinator
@@ -89,13 +90,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.data.get(CONF_PRINTING_SCAN_INTERVAL, DEFAULT_PRINTING_SCAN_INTERVAL)
     )
 
+    # Optional (see typesafe_judgments.py): empty/unset disables it entirely,
+    # every affected coordinator call site falls back to its original
+    # deterministic behavior.
+    typesafe_api_key = entry.options.get(
+        CONF_TYPESAFE_API_KEY,
+        entry.data.get(CONF_TYPESAFE_API_KEY)
+    ) or None
+
     coordinator = FlashforgeDataUpdateCoordinator(
         hass,
         host=host,
         serial_number=serial_number,
         check_code=check_code,
         regular_scan_interval=scan_interval, # Pass as regular_scan_interval
-        printing_scan_interval=printing_scan_interval # Pass new printing_scan_interval
+        printing_scan_interval=printing_scan_interval, # Pass new printing_scan_interval
+        typesafe_api_key=typesafe_api_key,
     )
 
     await coordinator.async_refresh()
