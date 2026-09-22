@@ -1,4 +1,5 @@
 """Button platform for Flashforge Adventurer 5M PRO integration."""
+
 import logging
 from typing import List, Callable, Optional, Dict, Any
 
@@ -19,7 +20,7 @@ from .const import (
     API_ATTR_DETAIL,
     PRINTING_STATES,
     PAUSED_STATE,
-    IDLE_STATES, # To determine if printer is idle for some actions
+    IDLE_STATES,  # To determine if printer is idle for some actions
 )
 from .coordinator import FlashforgeDataUpdateCoordinator
 from .entity import FlashforgeEntity
@@ -30,27 +31,38 @@ _LOGGER = logging.getLogger(__name__)
 # --- Availability Functions ---
 def _is_printing_or_paused(coordinator: FlashforgeDataUpdateCoordinator) -> bool:
     """Return True if printer is printing or paused."""
-    if not coordinator.data or not isinstance(coordinator.data.get(API_ATTR_DETAIL), dict):
+    if not coordinator.data or not isinstance(
+        coordinator.data.get(API_ATTR_DETAIL), dict
+    ):
         return False
     status = coordinator.data[API_ATTR_DETAIL].get(API_ATTR_STATUS)
     return status in PRINTING_STATES or status == PAUSED_STATE
 
+
 def _is_printing(coordinator: FlashforgeDataUpdateCoordinator) -> bool:
     """Return True if printer is actively printing (not paused)."""
-    if not coordinator.data or not isinstance(coordinator.data.get(API_ATTR_DETAIL), dict):
+    if not coordinator.data or not isinstance(
+        coordinator.data.get(API_ATTR_DETAIL), dict
+    ):
         return False
     return coordinator.data[API_ATTR_DETAIL].get(API_ATTR_STATUS) in PRINTING_STATES
 
+
 def _is_paused(coordinator: FlashforgeDataUpdateCoordinator) -> bool:
     """Return True if printer is paused."""
-    if not coordinator.data or not isinstance(coordinator.data.get(API_ATTR_DETAIL), dict):
+    if not coordinator.data or not isinstance(
+        coordinator.data.get(API_ATTR_DETAIL), dict
+    ):
         return False
     return coordinator.data[API_ATTR_DETAIL].get(API_ATTR_STATUS) == PAUSED_STATE
 
+
 def _is_idle(coordinator: FlashforgeDataUpdateCoordinator) -> bool:
     """Return True if printer is idle and not printing/paused."""
-    if not coordinator.data or not isinstance(coordinator.data.get(API_ATTR_DETAIL), dict):
-        return True # Default to available if status is unknown, service call will fail if not appropriate
+    if not coordinator.data or not isinstance(
+        coordinator.data.get(API_ATTR_DETAIL), dict
+    ):
+        return True  # Default to available if status is unknown, service call will fail if not appropriate
     status = coordinator.data[API_ATTR_DETAIL].get(API_ATTR_STATUS)
     return status in IDLE_STATES or status not in PRINTING_STATES + [PAUSED_STATE]
 
@@ -84,11 +96,15 @@ class FlashforgeButtonEntity(FlashforgeEntity, ButtonEntity):
         unique_id_key: str,
         icon: str,
         service_name: str,
-        availability_func: Optional[Callable[[FlashforgeDataUpdateCoordinator], bool]] = None,
+        availability_func: Optional[
+            Callable[[FlashforgeDataUpdateCoordinator], bool]
+        ] = None,
         service_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize the Flashforge button entity."""
-        super().__init__(coordinator, name_suffix=name_suffix, unique_id_key=unique_id_key)
+        super().__init__(
+            coordinator, name_suffix=name_suffix, unique_id_key=unique_id_key
+        )
         self._attr_icon = icon
         self._service_name = service_name
         self._service_data = service_data or {}
@@ -99,7 +115,9 @@ class FlashforgeButtonEntity(FlashforgeEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         """Handle the button press."""
-        _LOGGER.debug(f"Button '{self.name}' pressed, calling service '{self._service_name}' with data: {self._service_data}")
+        _LOGGER.debug(
+            f"Button '{self.name}' pressed, calling service '{self._service_name}' with data: {self._service_data}"
+        )
         try:
             await self.hass.services.async_call(
                 DOMAIN,
@@ -109,13 +127,17 @@ class FlashforgeButtonEntity(FlashforgeEntity, ButtonEntity):
             )
             await self.coordinator.async_request_refresh()
         except Exception as e:
-            _LOGGER.error(f"Error calling service {self._service_name} for button {self.name}: {e}")
+            _LOGGER.error(
+                f"Error calling service {self._service_name} for button {self.name}: {e}"
+            )
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator to update availability."""
         new_availability = self.coordinator.last_update_success
-        if self._availability_func and new_availability: # Only check specific func if coordinator is already available
+        if (
+            self._availability_func and new_availability
+        ):  # Only check specific func if coordinator is already available
             new_availability = self._availability_func(self.coordinator)
 
         if self._attr_available != new_availability:
@@ -133,13 +155,15 @@ class FlashforgeButtonEntity(FlashforgeEntity, ButtonEntity):
             # So, if new_availability changes _attr_available, the subsequent call to
             # super()._handle_coordinator_update() will persist this.
 
-        super()._handle_coordinator_update() # This calls self.async_write_ha_state() from FlashforgeEntity
+        super()._handle_coordinator_update()  # This calls self.async_write_ha_state() from FlashforgeEntity
 
 
 # --- Specific Button Implementations ---
 
+
 class PausePrintButton(FlashforgeButtonEntity):
     """Button to pause the current print."""
+
     def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
         super().__init__(
             coordinator,
@@ -147,11 +171,13 @@ class PausePrintButton(FlashforgeButtonEntity):
             unique_id_key="pause_print",
             icon="mdi:pause",
             service_name=SERVICE_PAUSE_PRINT,
-            availability_func=_is_printing
+            availability_func=_is_printing,
         )
+
 
 class ResumePrintButton(FlashforgeButtonEntity):
     """Button to resume a paused print."""
+
     def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
         super().__init__(
             coordinator,
@@ -159,11 +185,13 @@ class ResumePrintButton(FlashforgeButtonEntity):
             unique_id_key="resume_print",
             icon="mdi:play",
             service_name=SERVICE_RESUME_PRINT,
-            availability_func=_is_paused
+            availability_func=_is_paused,
         )
+
 
 class CancelPrintButton(FlashforgeButtonEntity):
     """Button to cancel the current print."""
+
     def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
         super().__init__(
             coordinator,
@@ -171,42 +199,48 @@ class CancelPrintButton(FlashforgeButtonEntity):
             unique_id_key="cancel_print",
             icon="mdi:stop",
             service_name=SERVICE_CANCEL_PRINT,
-            availability_func=_is_printing_or_paused
+            availability_func=_is_printing_or_paused,
         )
+
 
 class HomeAxesButton(FlashforgeButtonEntity):
     """Button to home all printer axes."""
+
     def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
         super().__init__(
             coordinator,
             name_suffix="Home Axes",
             unique_id_key="home_axes",
-            icon="mdi:home-axis-vertical", # Using a more generic home icon
+            icon="mdi:home-axis-vertical",  # Using a more generic home icon
             service_name=SERVICE_HOME_AXES,
-            availability_func=_is_idle # Generally home when idle
+            availability_func=_is_idle,  # Generally home when idle
             # service_data could be passed if we want specific axis homing buttons later
         )
 
+
 class FilamentChangeButton(FlashforgeButtonEntity):
     """Button to initiate filament change procedure."""
+
     def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
         super().__init__(
             coordinator,
             name_suffix="Filament Change",
             unique_id_key="filament_change",
-            icon="mdi:printer-3d-nozzle-alert-outline", # Icon suggesting filament action
+            icon="mdi:printer-3d-nozzle-alert-outline",  # Icon suggesting filament action
             service_name=SERVICE_FILAMENT_CHANGE,
-            availability_func=_is_idle # Typically done when idle
+            availability_func=_is_idle,  # Typically done when idle
         )
+
 
 class StartBedLevelingButton(FlashforgeButtonEntity):
     """Button to start the bed leveling procedure."""
+
     def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
         super().__init__(
             coordinator,
             name_suffix="Start Bed Leveling",
             unique_id_key="start_bed_leveling",
-            icon="mdi:format-list-checks", # Icon suggesting a checklist/procedure
+            icon="mdi:format-list-checks",  # Icon suggesting a checklist/procedure
             service_name=SERVICE_START_BED_LEVELING,
-            availability_func=_is_idle # Typically done when idle
+            availability_func=_is_idle,  # Typically done when idle
         )

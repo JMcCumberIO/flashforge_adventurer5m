@@ -1,4 +1,5 @@
 """Select platform for Flashforge Adventurer 5M PRO integration."""
+
 import logging
 from typing import List, Optional
 
@@ -41,17 +42,21 @@ class FlashforgePrintFileSelect(FlashforgeEntity, SelectEntity):
 
     def __init__(self, coordinator: FlashforgeDataUpdateCoordinator) -> None:
         """Initialize the select entity."""
-        super().__init__(coordinator, name_suffix="Print File", unique_id_key="print_file_select")
-        self._attr_icon: str = "mdi:file-document-outline" # Using a more generic file icon
+        super().__init__(
+            coordinator, name_suffix="Print File", unique_id_key="print_file_select"
+        )
+        self._attr_icon: str = (
+            "mdi:file-document-outline"  # Using a more generic file icon
+        )
         self._attr_options: List[str] = []
         self._attr_current_option: Optional[str] = None
-        self._update_attributes_from_coordinator() # Initial update
+        self._update_attributes_from_coordinator()  # Initial update
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self._update_attributes_from_coordinator()
-        super()._handle_coordinator_update() # Calls self.async_write_ha_state()
+        super()._handle_coordinator_update()  # Calls self.async_write_ha_state()
 
     def _update_attributes_from_coordinator(self) -> None:
         """Update entity attributes based on coordinator data."""
@@ -77,7 +82,9 @@ class FlashforgePrintFileSelect(FlashforgeEntity, SelectEntity):
                     # Check if any option is a suffix of current_printing_file or vice-versa for basic matching.
                     found_match = False
                     for option_path in self._attr_options:
-                        if current_printing_file.endswith(option_path) or option_path.endswith(current_printing_file):
+                        if current_printing_file.endswith(
+                            option_path
+                        ) or option_path.endswith(current_printing_file):
                             self._attr_current_option = option_path
                             found_match = True
                             break

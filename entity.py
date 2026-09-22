@@ -1,8 +1,9 @@
 """Base entity class for Flashforge Adventurer 5M PRO integration."""
+
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.core import callback
-from typing import Dict, Any, Optional # Import Dict, Any, Optional
+from typing import Dict, Any, Optional  # Import Dict, Any, Optional
 
 from .const import (
     DOMAIN,
@@ -10,8 +11,8 @@ from .const import (
     API_ATTR_MODEL,
     API_ATTR_DETAIL,
     MANUFACTURER,
-    DEVICE_MODEL_AD5M_PRO, # Default model name if API doesn't provide one
-    DEVICE_NAME_DEFAULT, # Default device name for UI
+    DEVICE_MODEL_AD5M_PRO,  # Default model name if API doesn't provide one
+    DEVICE_NAME_DEFAULT,  # Default device name for UI
     UNIQUE_ID_PREFIX,
 )
 from .coordinator import FlashforgeDataUpdateCoordinator
@@ -20,7 +21,12 @@ from .coordinator import FlashforgeDataUpdateCoordinator
 class FlashforgeEntity(CoordinatorEntity[FlashforgeDataUpdateCoordinator]):
     """Base class for Flashforge entities."""
 
-    def __init__(self, coordinator: FlashforgeDataUpdateCoordinator, name_suffix: str, unique_id_key: str) -> None:
+    def __init__(
+        self,
+        coordinator: FlashforgeDataUpdateCoordinator,
+        name_suffix: str,
+        unique_id_key: str,
+    ) -> None:
         """Initialize the entity.
 
         Args:
@@ -30,13 +36,17 @@ class FlashforgeEntity(CoordinatorEntity[FlashforgeDataUpdateCoordinator]):
         """
         super().__init__(coordinator)
         self._attr_name: str = f"{MANUFACTURER} {name_suffix}"
-        self._attr_unique_id: str = f"{UNIQUE_ID_PREFIX}{coordinator.serial_number}_{unique_id_key}"
+        self._attr_unique_id: str = (
+            f"{UNIQUE_ID_PREFIX}{coordinator.serial_number}_{unique_id_key}"
+        )
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information for the printer."""
         detail: Dict[str, Any] = {}
-        if self.coordinator.data and isinstance(self.coordinator.data.get(API_ATTR_DETAIL), dict):
+        if self.coordinator.data and isinstance(
+            self.coordinator.data.get(API_ATTR_DETAIL), dict
+        ):
             detail = self.coordinator.data[API_ATTR_DETAIL]
 
         firmware_version: Optional[str] = detail.get(API_ATTR_FIRMWARE_VERSION)
@@ -54,7 +64,6 @@ class FlashforgeEntity(CoordinatorEntity[FlashforgeDataUpdateCoordinator]):
         """When entity is added to hass."""
         await super().async_added_to_hass()  # CoordinatorEntity handles listener registration
 
-
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -63,6 +72,7 @@ class FlashforgeEntity(CoordinatorEntity[FlashforgeDataUpdateCoordinator]):
         # For many simple entities, this might just be self.async_write_ha_state().
         # However, specific entities like sensors might override this to process data.
         self.async_write_ha_state()
+
 
 # Note: The _handle_coordinator_update in this base class now calls async_write_ha_state.
 # Sensor and BinarySensor classes in HA often have their own _handle_coordinator_update
