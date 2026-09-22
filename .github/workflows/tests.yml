@@ -66,7 +66,7 @@ jobs:
       uses: home-assistant/actions/hassfest@master
 
   test:
-    needs: [style, validate]
+    needs: [style]
     runs-on: ubuntu-latest
     strategy:
       matrix:
