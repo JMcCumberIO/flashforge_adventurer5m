@@ -6,6 +6,7 @@ repository. This script runs whatever tests are present; exit code 5
 """
 
 import argparse
+import os
 import subprocess
 import sys
 
@@ -16,7 +17,18 @@ EXIT_NO_TESTS = 5  # No tests collected — treated as success in CI
 
 
 def build_pytest_cmd(config: str, coverage: bool) -> list:
-    cmd = [sys.executable, "-m", "pytest"]
+    # Invoke the "pytest" console script directly rather than "python -m
+    # pytest": -m prepends the current working directory to sys.path, and
+    # this repo's own select.py (the Home Assistant select platform file,
+    # required at the repo root by its content_in_root HACS layout) then
+    # shadows the stdlib select module, crashing pytest's own import chain
+    # (pytest -> importlib.metadata -> email -> socket -> selectors ->
+    # select) before any test collection happens. Resolve the script next
+    # to sys.executable rather than via $PATH, so it's guaranteed to be the
+    # pytest just installed into this same environment by
+    # `pip install -r requirements_test.txt`, not an unrelated one earlier
+    # on $PATH.
+    cmd = [os.path.join(os.path.dirname(sys.executable), "pytest")]
 
     if coverage:
         cmd += ["--cov=.", "--cov-report=xml", "--cov-report=term-missing"]
