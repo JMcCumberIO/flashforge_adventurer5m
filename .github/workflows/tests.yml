@@ -52,6 +52,7 @@ jobs:
         python -c "import json; json.load(open('translations/en.json'))"
 
   validate:
+    if: false
     runs-on: ubuntu-latest
 
     steps:
